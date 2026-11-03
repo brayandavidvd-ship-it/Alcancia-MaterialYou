@@ -1,11 +1,23 @@
-<div align="center">
+# 🐖 Alcancía - App de Ahorros (Versión 1.0)
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Una aplicación móvil moderna, minimalista y 100% privada para gestionar tus metas de ahorro, diseñada y desarrollada con la ayuda de Google AI Studio.
 
-  <h1>Built with AI Studio</h2>
+## ✨ Características Principales
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+* **🔒 100% Privada y Local:** Tus datos se guardan únicamente en el almacenamiento seguro de tu dispositivo. Sin servidores externos ni recopilación de información.
+* **🛡️ Cero Anuncios ni Rastreadores:** Totalmente libre de publicidad, SDKs de analítica en segundo plano y consumo innecesario de batería.
+* **🎨 Personalización Total:** Soporte para Material You (colores dinámicos), temas rápidos, acentos de color personalizados, modo oscuro/claro y estilos de tarjetas.
+* **🔐 Seguridad Avanzada:** Opciones de bloqueo mediante huella digital (biometría) y código PIN de acceso.
+* **⏰ Recordatorios Inteligentes:** Notificaciones locales personalizadas para tus aportes con optimización de batería en segundo plano para garantizar puntualidad exacta.
+* **💾 Respaldos y Exportación:** Crea respaldos completos de la app o exporta tus movimientos en formato CSV para consultarlos en Excel o Google Sheets.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 🛠️ Requisitos de Compilación (F-Droid Ready)
 
-</div>
+Este proyecto cumple con las directrices de código abierto y software libre requeridas por **F-Droid**:
+
+1. Abrir [Android Studio](https://developer.android.com/studio).
+2. Seleccionar **Open** y elegir el directorio raíz del proyecto.
+3. Compilar el APK de producción utilizando Gradle.
+
+## 👨‍💻 Créditos
+Creado por **PixelX_O** con el apoyo de **Google AI Studio**.
