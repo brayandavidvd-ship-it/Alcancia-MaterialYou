@@ -13,9 +13,5 @@ Una aplicación móvil moderna, minimalista y 100% privada para gestionar tus me
 
 Este proyecto cumple con las directrices de código abierto y software libre requeridas por **F-Droid**:
 
-1. Abrir [Android Studio](https://developer.android.com/studio).
-2. Seleccionar **Open** y elegir el directorio raíz del proyecto.
-3. Compilar el APK de producción utilizando Gradle.
-
 ## 👨‍💻 Créditos
 Creado por **PixelX_O** con el apoyo de **Google AI Studio**.
