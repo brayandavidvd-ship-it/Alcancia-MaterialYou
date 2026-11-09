@@ -3,8 +3,6 @@
 Una aplicación móvil moderna, minimalista y 100% privada para gestionar tus metas de ahorro, diseñada y desarrollada con la ayuda de Google AI Studio.
 
 ## ✨ Características Principales
-
-* **🔒 100% Privada y Local:** Tus datos se guardan únicamente en el almacenamiento seguro de tu dispositivo. Sin servidores externos ni recopilación de información.
 * **🛡️ Cero Anuncios ni Rastreadores:** Totalmente libre de publicidad, SDKs de analítica en segundo plano y consumo innecesario de batería.
 * **🎨 Personalización Total:** Soporte para Material You (colores dinámicos), temas rápidos, acentos de color personalizados, modo oscuro/claro y estilos de tarjetas.
 * **🔐 Seguridad Avanzada:** Opciones de bloqueo mediante huella digital (biometría) y código PIN de acceso.
