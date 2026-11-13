@@ -1,41 +1,50 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddShoppingCart
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -46,19 +55,19 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,29 +76,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ShoppingItemEntity
 import com.example.data.model.ShoppingListEntity
-import com.example.ui.components.AlcanciaCard
 import com.example.ui.components.CurrencyUtils
 import com.example.ui.components.RegisterShoppingExpenseSheet
-import com.example.ui.theme.LocalExpenseColor
-import com.example.ui.theme.LocalIncomeColor
-import com.example.ui.theme.LocalIsCompactDensity
+import com.example.ui.theme.ColorblindExpenseColor
+import com.example.ui.theme.ColorblindIncomeColor
 import com.example.ui.theme.LocalNumberFontFamily
 import com.example.ui.viewmodel.AlcanciaViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,204 +117,202 @@ fun ComprasScreen(
     val shoppingLists by viewModel.shoppingListsState.collectAsStateWithLifecycle()
     val selectedListId by viewModel.selectedListId.collectAsStateWithLifecycle()
     val items by viewModel.currentShoppingItemsState.collectAsStateWithLifecycle()
+    val listItemCounts by viewModel.shoppingListItemCountsState.collectAsStateWithLifecycle()
     val productSuggestions by viewModel.productSuggestions.collectAsStateWithLifecycle()
     val categories by viewModel.categoriesState.collectAsStateWithLifecycle()
     val settings by viewModel.settingsState.collectAsStateWithLifecycle()
 
-    val incomeColor = LocalIncomeColor.current
-    val expenseColor = LocalExpenseColor.current
+    val systemDark = isSystemInDarkTheme()
+    val isDark = when (settings.themeMode) {
+        "LIGHT" -> false
+        "DARK" -> true
+        else -> systemDark
+    }
+    val rawPalette = if (isDark) InicioPalette.Dark else InicioPalette.Light
+    val palette = if (settings.isColorblindPreset) {
+        rawPalette.copy(
+            ingreso = ColorblindIncomeColor,
+            gasto = ColorblindExpenseColor
+        )
+    } else {
+        rawPalette
+    }
+
     val numberFont = LocalNumberFontFamily.current
-    val isCompact = LocalIsCompactDensity.current
 
     val currentList = remember(shoppingLists, selectedListId) {
         shoppingLists.firstOrNull { it.id == selectedListId } ?: shoppingLists.firstOrNull()
     }
 
-    // Split items into "Por comprar" and "Comprado"
+    // Keep selectedListId synced if active list was deleted or missing
+    LaunchedEffect(shoppingLists, selectedListId) {
+        if (shoppingLists.isNotEmpty() && shoppingLists.none { it.id == selectedListId }) {
+            viewModel.selectShoppingList(shoppingLists.first().id)
+        }
+    }
+
     val pendingItems = remember(items) { items.filter { !it.isPurchased } }
     val purchasedItems = remember(items) { items.filter { it.isPurchased } }
 
     val totalAmount = remember(items) { items.sumOf { it.quantity * it.unitPrice } }
-    val purchasedAmount = remember(items) { purchasedItems.sumOf { it.quantity * it.unitPrice } }
-    val pendingAmount = remember(items) { pendingItems.sumOf { it.quantity * it.unitPrice } }
+    val purchasedAmount = remember(purchasedItems) { purchasedItems.sumOf { it.quantity * it.unitPrice } }
+    val pendingAmount = remember(pendingItems) { pendingItems.sumOf { it.quantity * it.unitPrice } }
 
-    // Dialog states
+    // Modal & Dialog states
     var showNewListDialog by remember { mutableStateOf(false) }
     var showRenameListDialog by remember { mutableStateOf(false) }
-    var showBudgetDialog by remember { mutableStateOf(false) }
+    var showBudgetSheet by remember { mutableStateOf(false) }
+    var showAddProductSheet by remember { mutableStateOf(false) }
+    var showListSelectorSheet by remember { mutableStateOf(false) }
     var showRegisterExpenseSheet by remember { mutableStateOf(false) }
-    var showListsDropdown by remember { mutableStateOf(false) }
     var showListOptionsMenu by remember { mutableStateOf(false) }
+    var listToDelete by remember { mutableStateOf<ShoppingListEntity?>(null) }
 
     // Item Context Menu states
     var itemContextMenu by remember { mutableStateOf<ShoppingItemEntity?>(null) }
     var itemToEdit by remember { mutableStateOf<ShoppingItemEntity?>(null) }
     var itemToDelete by remember { mutableStateOf<ShoppingItemEntity?>(null) }
 
-    // Quick add product fields
-    var newProductName by remember { mutableStateOf("") }
-    var newProductQty by remember { mutableStateOf("1") }
-    var newProductPrice by remember { mutableStateOf("") }
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    // Matching suggestions
-    val matchingSuggestions = remember(newProductName, productSuggestions) {
-        if (newProductName.isBlank()) {
-            productSuggestions.take(5)
-        } else {
-            productSuggestions.filter { it.contains(newProductName, ignoreCase = true) }.take(5)
-        }
-    }
-
-    val hasApiKey by viewModel.hasGeminiApiKey.collectAsStateWithLifecycle()
-    val showAiFab = settings.isCloudAiEnabled && settings.cloudAiConsentAccepted && hasApiKey
-
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            if (showAiFab) {
-                FloatingActionButton(
-                    onClick = { viewModel.openAssistantChat() },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    shape = RoundedCornerShape(22.dp),
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .padding(bottom = 86.dp)
-                        .testTag("ai_assistant_fab_compras")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "Asistente de IA",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-    ) { innerPadding ->
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(palette.bg)
+    ) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = if (isCompact) 14.dp else 20.dp,
-                end = if (isCompact) 14.dp else 20.dp,
-                top = 16.dp,
-                bottom = 124.dp
+                start = 16.dp,
+                end = 16.dp,
+                top = statusBarTop + 8.dp,
+                bottom = navBarBottom + 162.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header: List Selector & Actions (Share, Duplicate list, Rename, New)
-            item(key = "list_header") {
-                AlcanciaCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+            // B1. Encabezado
+            item(key = "compras_header") {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Box {
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .clickable { showListsDropdown = true }
-                                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.List,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = currentList?.name ?: "Mi lista",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                        Text(
+                            text = "Compras",
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = palette.t1,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
 
-                                DropdownMenu(
-                                    expanded = showListsDropdown,
-                                    onDismissRequest = { showListsDropdown = false },
-                                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                ) {
-                                    for (list in shoppingLists) {
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = list.name,
-                                                    fontWeight = if (list.id == currentList?.id) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            },
-                                            onClick = {
-                                                viewModel.selectShoppingList(list.id)
-                                                showListsDropdown = false
-                                            }
-                                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                onClick = {
+                                    if (currentList != null) {
+                                        shareListAsText(context, currentList, items, totalAmount, settings.currencySymbol)
                                     }
+                                },
+                                shape = CircleShape,
+                                color = palette.s2,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .testTag("compras_share_btn")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Compartir lista como texto",
+                                        tint = palette.accent,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = {
-                                        if (currentList != null) {
-                                            shareListAsText(context, currentList, items, totalAmount, settings.currencySymbol)
-                                        }
-                                    }
+                            Box {
+                                Surface(
+                                    onClick = { showListOptionsMenu = true },
+                                    shape = CircleShape,
+                                    color = palette.s2,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .testTag("compras_menu_btn")
                                 ) {
-                                    Icon(imageVector = Icons.Default.Share, contentDescription = "Compartir lista como texto")
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "Opciones de lista",
+                                            tint = palette.accent,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
 
-                                Box {
-                                    IconButton(onClick = { showListOptionsMenu = true }) {
-                                        Icon(imageVector = Icons.Default.MoreVert, contentDescription = "Opciones de lista")
-                                    }
-
-                                    DropdownMenu(
-                                        expanded = showListOptionsMenu,
-                                        onDismissRequest = { showListOptionsMenu = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                                            text = { Text("Duplicar lista") },
-                                            onClick = {
-                                                if (currentList != null) {
-                                                    viewModel.duplicateShoppingList(currentList.id)
-                                                    scope.launch { snackbarHostState.showSnackbar("Lista duplicada") }
-                                                }
-                                                showListOptionsMenu = false
+                                DropdownMenu(
+                                    expanded = showListOptionsMenu,
+                                    onDismissRequest = { showListOptionsMenu = false },
+                                    modifier = Modifier.background(palette.s2)
+                                ) {
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = palette.t1)
+                                        },
+                                        text = { Text("Duplicar lista", color = palette.t1) },
+                                        onClick = {
+                                            if (currentList != null) {
+                                                viewModel.duplicateShoppingList(currentList.id)
+                                                scope.launch { snackbarHostState.showSnackbar("Lista duplicada") }
                                             }
-                                        )
+                                            showListOptionsMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Edit, contentDescription = null, tint = palette.t1)
+                                        },
+                                        text = { Text("Renombrar", color = palette.t1) },
+                                        onClick = {
+                                            showRenameListDialog = true
+                                            showListOptionsMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = palette.t1)
+                                        },
+                                        text = { Text("Presupuesto de la lista", color = palette.t1) },
+                                        onClick = {
+                                            showBudgetSheet = true
+                                            showListOptionsMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = palette.t1)
+                                        },
+                                        text = { Text("Nueva lista", color = palette.t1) },
+                                        onClick = {
+                                            showNewListDialog = true
+                                            showListOptionsMenu = false
+                                        }
+                                    )
+                                    if (shoppingLists.size > 1 && currentList != null) {
                                         DropdownMenuItem(
-                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                            text = { Text("Renombrar") },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Delete, contentDescription = null, tint = palette.gasto)
+                                            },
+                                            text = { Text("Eliminar lista", color = palette.gasto) },
                                             onClick = {
-                                                showRenameListDialog = true
-                                                showListOptionsMenu = false
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            leadingIcon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
-                                            text = { Text("Fijar presupuesto") },
-                                            onClick = {
-                                                showBudgetDialog = true
-                                                showListOptionsMenu = false
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-                                            text = { Text("Nueva lista") },
-                                            onClick = {
-                                                showNewListDialog = true
+                                                listToDelete = currentList
                                                 showListOptionsMenu = false
                                             }
                                         )
@@ -310,259 +320,213 @@ fun ComprasScreen(
                                 }
                             }
                         }
+                    }
 
-                        // Presupuesto opcional con barra que cambia de color al 80% y >100%
-                        if (currentList?.budget != null && currentList.budget > 0.0) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            val budget = currentList.budget
-                            val ratio = (totalAmount / budget).toFloat()
-                            val barColor = when {
-                                ratio >= 1.0f -> expenseColor
-                                ratio >= 0.8f -> Color(0xFFF57C00) // Amber / warning
-                                else -> MaterialTheme.colorScheme.primary
-                            }
-
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Presupuesto: ${CurrencyUtils.formatAmount(budget, settings.currencySymbol)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    val percentInt = (ratio * 100).toInt()
-                                    Text(
-                                        text = "$percentInt%",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = barColor
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(RoundedCornerShape(3.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(ratio.coerceIn(0.02f, 1f))
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(barColor)
-                                    )
-                                }
-                            }
+                    // Selector de lista activa (cápsula 40.dp)
+                    Surface(
+                        onClick = { showListSelectorSheet = true },
+                        shape = CircleShape,
+                        color = palette.s2,
+                        modifier = Modifier
+                            .height(40.dp)
+                            .testTag("list_selector_pill")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = currentList?.name ?: "Mi lista",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = palette.accent,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Seleccionar lista",
+                                tint = palette.accent,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 }
             }
 
-            // Live Total & Register as Expense Card
+            // B2, B3, B4. Tarjeta de Total, Presupuesto y Botón Registrar como gasto
             item(key = "shopping_live_total_card") {
-                AlcanciaCard(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp)
+                    shape = RoundedCornerShape(24.dp),
+                    color = palette.s1
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(18.dp)
+                            .padding(16.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Total en vivo",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontSize = 12.sp,
+                                    color = palette.t2
                                 )
-                                val formattedTotal = CurrencyUtils.formatAmount(totalAmount, settings.currencySymbol)
                                 Text(
-                                    text = formattedTotal,
-                                    style = MaterialTheme.typography.displayMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = numberFont
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    text = CurrencyUtils.formatAmount(totalAmount, settings.currencySymbol),
+                                    fontSize = 34.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    fontFamily = numberFont,
+                                    color = palette.t1,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.testTag("shopping_total_text")
                                 )
                             }
 
+                            Spacer(modifier = Modifier.width(8.dp))
+
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     text = "Comprado: ${CurrencyUtils.formatAmount(purchasedAmount, settings.currencySymbol)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = numberFont),
-                                    color = incomeColor,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontSize = 12.sp,
+                                    fontFamily = numberFont,
+                                    color = palette.ingreso,
+                                    maxLines = 1
                                 )
                                 Text(
                                     text = "Por comprar: ${CurrencyUtils.formatAmount(pendingAmount, settings.currencySymbol)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = numberFont),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontSize = 12.sp,
+                                    fontFamily = numberFont,
+                                    color = palette.t2,
+                                    maxLines = 1
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        Button(
-                            onClick = {
-                                if (totalAmount > 0) {
-                                    showRegisterExpenseSheet = true
-                                }
-                            },
-                            enabled = totalAmount > 0,
-                            shape = RoundedCornerShape(22.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("register_as_expense_btn")
-                        ) {
-                            Icon(imageVector = Icons.Default.AddShoppingCart, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Registrar como gasto",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                        // Barra de progreso comprado vs total
+                        val purchasedFraction = if (totalAmount > 0.0) {
+                            (purchasedAmount / totalAmount).toFloat().coerceIn(0f, 1f)
+                        } else {
+                            0f
                         }
-                    }
-                }
-            }
-
-            // Quick Add Product Card with Price Memory & Suggestions
-            item(key = "add_product_card") {
-                AlcanciaCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Añadir producto",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = newProductName,
-                            onValueChange = { input ->
-                                newProductName = input
-                                scope.launch {
-                                    val lastPrice = viewModel.getLastUnitPriceForProduct(input)
-                                    if (lastPrice != null && lastPrice > 0.0 && newProductPrice.isBlank()) {
-                                        newProductPrice = if (lastPrice % 1.0 == 0.0) lastPrice.toInt().toString() else lastPrice.toString()
-                                    }
-                                }
-                            },
-                            label = { Text("Producto (ej. Leche, Manzanas)") },
-                            shape = RoundedCornerShape(16.dp),
-                            singleLine = true,
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("product_name_input")
-                        )
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(palette.s3)
+                        ) {
+                            if (purchasedFraction > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(purchasedFraction)
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(palette.brand)
+                                )
+                            }
+                        }
 
-                        // Suggestions Chips (Price memory)
-                        if (matchingSuggestions.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(6.dp))
+                        // B3. Presupuesto (solo si la lista tiene presupuesto > 0)
+                        val budget = currentList?.budget
+                        if (budget != null && budget > 0.0) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            val isOverBudget = totalAmount > budget
+                            val diff = abs(budget - totalAmount)
+                            val budgetFraction = (totalAmount / budget).toFloat().coerceIn(0f, 1f)
+                            val budgetBarColor = if (isOverBudget) palette.gasto else palette.brand
+
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Presupuesto ${CurrencyUtils.formatAmount(budget, settings.currencySymbol)}",
+                                    fontSize = 12.sp,
+                                    fontFamily = numberFont,
+                                    color = palette.t2
+                                )
+                                Text(
+                                    text = if (isOverBudget) {
+                                        "Te pasaste por ${CurrencyUtils.formatAmount(diff, settings.currencySymbol)}"
+                                    } else {
+                                        "Te quedan ${CurrencyUtils.formatAmount(diff, settings.currencySymbol)}"
+                                    },
+                                    fontSize = 12.sp,
+                                    fontFamily = numberFont,
+                                    color = if (isOverBudget) palette.gasto else palette.ingreso
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(palette.s3)
                             ) {
-                                for (suggestion in matchingSuggestions) {
-                                    FilterChip(
-                                        selected = false,
-                                        onClick = {
-                                            newProductName = suggestion
-                                            scope.launch {
-                                                val lastPrice = viewModel.getLastUnitPriceForProduct(suggestion)
-                                                if (lastPrice != null && lastPrice > 0.0) {
-                                                    newProductPrice = if (lastPrice % 1.0 == 0.0) lastPrice.toInt().toString() else lastPrice.toString()
-                                                }
-                                            }
-                                        },
-                                        label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) },
-                                        shape = RoundedCornerShape(12.dp)
+                                if (budgetFraction > 0f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(budgetFraction)
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp))
+                                            .background(budgetBarColor)
                                     )
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = newProductQty,
-                                onValueChange = { newProductQty = it },
-                                label = { Text("Cant.") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                shape = RoundedCornerShape(16.dp),
-                                singleLine = true,
+                        // B4. Botón "Registrar como gasto" (solo si Comprado > 0)
+                        if (purchasedAmount > 0.0) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Surface(
+                                onClick = { showRegisterExpenseSheet = true },
+                                shape = CircleShape,
+                                color = palette.brand,
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("product_qty_input")
-                            )
-
-                            OutlinedTextField(
-                                value = newProductPrice,
-                                onValueChange = { newProductPrice = it },
-                                label = { Text("Precio U.") },
-                                placeholder = { Text("0.00") },
-                                prefix = { Text(settings.currencySymbol) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                shape = RoundedCornerShape(16.dp),
-                                singleLine = true,
-                                modifier = Modifier
-                                    .weight(1.3f)
-                                    .testTag("product_price_input")
-                            )
-
-                            Button(
-                                onClick = {
-                                    val qty = newProductQty.toDoubleOrNull() ?: 1.0
-                                    val price = newProductPrice.toDoubleOrNull() ?: 0.0
-                                    if (newProductName.isNotBlank()) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        viewModel.addShoppingItem(newProductName, qty, price)
-                                        newProductName = ""
-                                        newProductQty = "1"
-                                        newProductPrice = ""
-                                    }
-                                },
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier
-                                    .height(54.dp)
-                                    .testTag("add_item_btn")
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("register_as_expense_btn")
                             ) {
-                                Icon(imageVector = Icons.Default.Add, contentDescription = "Agregar producto")
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ShoppingCart,
+                                        contentDescription = null,
+                                        tint = palette.onBrand,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Registrar como gasto",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = palette.onBrand
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // SECTION 1: Por comprar
+            // B6. Sección "Por comprar ({n})"
             item(key = "section_pending_header") {
                 Row(
                     modifier = Modifier
@@ -573,16 +537,17 @@ fun ComprasScreen(
                 ) {
                     Text(
                         text = "Por comprar (${pendingItems.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.t1
                     )
                     if (pendingItems.isNotEmpty()) {
                         Text(
                             text = CurrencyUtils.formatAmount(pendingAmount, settings.currencySymbol),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = numberFont),
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = numberFont,
+                            color = palette.t1
                         )
                     }
                 }
@@ -591,129 +556,426 @@ fun ComprasScreen(
             if (pendingItems.isEmpty()) {
                 item(key = "empty_pending") {
                     Text(
-                        text = if (items.isEmpty()) "Lista vacía. Agrega productos arriba." else "¡Todo comprado en esta lista! 🎉",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = "Lista vacía. Agrega productos desde la barra de abajo.",
+                        fontSize = 14.sp,
+                        color = palette.t2,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
             } else {
-                items(items = pendingItems, key = { it.id }) { item ->
-                    ShoppingItemRow(
-                        item = item,
-                        currencySymbol = settings.currencySymbol,
-                        onTogglePurchased = { viewModel.toggleShoppingItemPurchased(item) },
-                        onQuantityChanged = { newQty ->
-                            if (newQty > 0) viewModel.updateShoppingItem(item.copy(quantity = newQty))
-                            else viewModel.deleteShoppingItem(item)
-                        },
-                        onLongPress = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            itemContextMenu = item
+                item(key = "pending_items_group") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        pendingItems.forEachIndexed { index, item ->
+                            val shape = shoppingRowShape(index, pendingItems.size)
+                            ShoppingItemRow(
+                                item = item,
+                                currencySymbol = settings.currencySymbol,
+                                palette = palette,
+                                shape = shape,
+                                isPurchased = false,
+                                onTogglePurchased = { viewModel.toggleShoppingItemPurchased(item) },
+                                onQuantityChanged = { newQty ->
+                                    if (newQty > 0) viewModel.updateShoppingItem(item.copy(quantity = newQty))
+                                    else viewModel.deleteShoppingItem(item)
+                                },
+                                onLongPress = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    itemContextMenu = item
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
 
-            // SECTION 2: Comprado (moved to bottom, dimmed)
+            // B6. Sección "Comprado ({n})"
             if (purchasedItems.isNotEmpty()) {
                 item(key = "section_purchased_header") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
+                            .padding(top = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Comprado (${purchasedItems.size})",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = incomeColor
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = palette.ingreso
                         )
                         Text(
                             text = CurrencyUtils.formatAmount(purchasedAmount, settings.currencySymbol),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = numberFont),
-                            fontWeight = FontWeight.SemiBold,
-                            color = incomeColor
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = numberFont,
+                            color = palette.ingreso
                         )
                     }
                 }
 
-                items(items = purchasedItems, key = { it.id }) { item ->
-                    ShoppingItemRow(
-                        item = item,
-                        currencySymbol = settings.currencySymbol,
-                        isDimmed = true,
-                        onTogglePurchased = { viewModel.toggleShoppingItemPurchased(item) },
-                        onQuantityChanged = { newQty ->
-                            if (newQty > 0) viewModel.updateShoppingItem(item.copy(quantity = newQty))
-                            else viewModel.deleteShoppingItem(item)
-                        },
-                        onLongPress = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            itemContextMenu = item
+                item(key = "purchased_items_group") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        purchasedItems.forEachIndexed { index, item ->
+                            val shape = shoppingRowShape(index, purchasedItems.size)
+                            ShoppingItemRow(
+                                item = item,
+                                currencySymbol = settings.currencySymbol,
+                                palette = palette,
+                                shape = shape,
+                                isPurchased = true,
+                                onTogglePurchased = { viewModel.toggleShoppingItemPurchased(item) },
+                                onQuantityChanged = { newQty ->
+                                    if (newQty > 0) viewModel.updateShoppingItem(item.copy(quantity = newQty))
+                                    else viewModel.deleteShoppingItem(item)
+                                },
+                                onLongPress = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    itemContextMenu = item
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
+        }
 
-            item(key = "bottom_space_shopping") {
-                Spacer(modifier = Modifier.height(80.dp))
+        // SnackbarHost sobre la barra de IA
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 150.dp)
+        )
+
+        // B5. Barra de IA flotante sobre la cápsula de navegación (separación 12.dp)
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 86.dp)
+                .fillMaxWidth()
+                .height(56.dp)
+                .testTag("ai_bar_compras"),
+            shape = CircleShape,
+            color = palette.s1,
+            border = BorderStroke(1.5.dp, Brush.horizontalGradient(InicioPalette.AiGradient)),
+            onClick = { viewModel.openAssistantChat() }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 16.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = "Asistente de IA",
+                    tint = palette.ahorro,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Dime qué comprar…",
+                    fontSize = 14.sp,
+                    color = palette.t2,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(palette.brand)
+                        .clickable { showAddProductSheet = true }
+                        .testTag("add_item_bar_btn"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Añadir producto",
+                        tint = palette.onBrand,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
 
-    // Long-press Context Menu for Product: Editar, Duplicar, Borrar
-    if (itemContextMenu != null) {
-        val item = itemContextMenu!!
-        AlertDialog(
-            onDismissRequest = { itemContextMenu = null },
-            title = { Text(item.name, fontWeight = FontWeight.Bold) },
-            text = {
-                val sub = CurrencyUtils.formatAmount(item.subtotal, settings.currencySymbol)
-                Text("${item.quantity} × ${CurrencyUtils.formatAmount(item.unitPrice, settings.currencySymbol)} = $sub")
+    // B7. Hoja "Añadir producto"
+    if (showAddProductSheet) {
+        AddProductBottomSheet(
+            currencySymbol = settings.currencySymbol,
+            productSuggestions = productSuggestions,
+            palette = palette,
+            onLookupLastPrice = { name -> viewModel.getLastUnitPriceForProduct(name) },
+            onDismiss = { showAddProductSheet = false },
+            onAdd = { name, qty, price ->
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                viewModel.addShoppingItem(name, qty, price)
+                showAddProductSheet = false
+            }
+        )
+    }
+
+    // B8. Hoja "Presupuesto de la lista"
+    if (showBudgetSheet && currentList != null) {
+        ListBudgetBottomSheet(
+            currentBudget = currentList.budget,
+            currencySymbol = settings.currencySymbol,
+            palette = palette,
+            onDismiss = { showBudgetSheet = false },
+            onSave = { newBudget ->
+                viewModel.updateShoppingList(currentList.copy(budget = newBudget))
+                showBudgetSheet = false
+            }
+        )
+    }
+
+    // B9. Selector de listas (hoja inferior)
+    if (showListSelectorSheet) {
+        ListSelectorBottomSheet(
+            shoppingLists = shoppingLists,
+            currentListId = currentList?.id,
+            itemCounts = listItemCounts,
+            palette = palette,
+            onDismiss = { showListSelectorSheet = false },
+            onSelectList = { listId ->
+                viewModel.selectShoppingList(listId)
+                showListSelectorSheet = false
             },
+            onNewList = {
+                showListSelectorSheet = false
+                showNewListDialog = true
+            }
+        )
+    }
+
+    // B9. Diálogo de confirmación para eliminar lista
+    if (listToDelete != null) {
+        val target = listToDelete!!
+        AlertDialog(
+            onDismissRequest = { listToDelete = null },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
+            title = { Text("¿Eliminar lista?") },
+            text = { Text("Se eliminará \"${target.name}\" y todos sus productos.") },
             confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = {
-                        val target = item
-                        itemContextMenu = null
-                        itemToEdit = target
-                    }) {
-                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Editar")
-                    }
-
-                    TextButton(onClick = {
-                        viewModel.duplicateShoppingItem(item)
-                        itemContextMenu = null
-                        scope.launch { snackbarHostState.showSnackbar("Producto duplicado") }
-                    }) {
-                        Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Duplicar")
-                    }
-
-                    Button(
-                        onClick = {
-                            val target = item
-                            itemContextMenu = null
-                            itemToDelete = target
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = expenseColor)
-                    ) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Borrar", color = Color.White)
-                    }
+                Button(
+                    onClick = {
+                        viewModel.deleteShoppingList(target)
+                        listToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.gasto),
+                    shape = CircleShape
+                ) {
+                    Text("Eliminar", color = palette.onBrand, fontWeight = FontWeight.Medium)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { itemContextMenu = null }) { Text("Cancelar") }
+                TextButton(onClick = { listToDelete = null }) {
+                    Text("Cancelar", color = palette.t2)
+                }
             }
         )
+    }
+
+    // Long-press Context Menu for Product: Editar, Duplicar, Eliminar (BLOQUE G)
+    if (itemContextMenu != null) {
+        val item = itemContextMenu!!
+        Dialog(onDismissRequest = { itemContextMenu = null }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = palette.s1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp)
+                ) {
+                    Text(
+                        text = item.name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.t1,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val sub = CurrencyUtils.formatAmount(item.subtotal, settings.currencySymbol)
+                    Text(
+                        text = "${item.quantity} × ${CurrencyUtils.formatAmount(item.unitPrice, settings.currencySymbol)} = $sub",
+                        fontSize = 14.sp,
+                        fontFamily = numberFont,
+                        color = palette.t2
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    BoxWithConstraints(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val singleButtonWidth = (maxWidth - 16.dp) / 3f
+                        val showIcons = singleButtonWidth >= 96.dp
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                onClick = {
+                                    val target = item
+                                    itemContextMenu = null
+                                    itemToEdit = target
+                                },
+                                shape = CircleShape,
+                                color = palette.s3,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (showIcons) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = null,
+                                            tint = palette.accent,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        text = "Editar",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = palette.t1,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                onClick = {
+                                    viewModel.duplicateShoppingItem(item)
+                                    itemContextMenu = null
+                                    scope.launch { snackbarHostState.showSnackbar("Producto duplicado") }
+                                },
+                                shape = CircleShape,
+                                color = palette.s3,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (showIcons) {
+                                        Icon(
+                                            imageVector = Icons.Default.ContentCopy,
+                                            contentDescription = null,
+                                            tint = palette.accent,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        text = "Duplicar",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = palette.t1,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                onClick = {
+                                    val target = item
+                                    itemContextMenu = null
+                                    itemToDelete = target
+                                },
+                                shape = CircleShape,
+                                color = palette.gasto.copy(alpha = 0.18f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (showIcons) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = palette.gasto,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        text = "Eliminar",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = palette.gasto,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = { itemContextMenu = null },
+                            modifier = Modifier.heightIn(min = 40.dp)
+                        ) {
+                            Text(
+                                text = "Cancelar",
+                                fontSize = 14.sp,
+                                color = palette.t2
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Delete item confirmation dialog
@@ -721,6 +983,9 @@ fun ComprasScreen(
         val target = itemToDelete!!
         AlertDialog(
             onDismissRequest = { itemToDelete = null },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
             title = { Text("¿Borrar ${target.name}?") },
             text = { Text("Se quitará de la lista de compras.") },
             confirmButton = {
@@ -729,12 +994,16 @@ fun ComprasScreen(
                         viewModel.deleteShoppingItem(target)
                         itemToDelete = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = expenseColor)
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.gasto)
                 ) {
-                    Text("Borrar", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Borrar", color = palette.onBrand, fontWeight = FontWeight.Bold)
                 }
             },
-            dismissButton = { TextButton(onClick = { itemToDelete = null }) { Text("Cancelar") } }
+            dismissButton = {
+                TextButton(onClick = { itemToDelete = null }) {
+                    Text("Cancelar", color = palette.t2)
+                }
+            }
         )
     }
 
@@ -744,6 +1013,7 @@ fun ComprasScreen(
         EditShoppingItemDialog(
             item = target,
             currencySymbol = settings.currencySymbol,
+            palette = palette,
             onDismiss = { itemToEdit = null },
             onSave = { newName, newQty, newPrice ->
                 viewModel.updateShoppingItem(
@@ -754,53 +1024,15 @@ fun ComprasScreen(
         )
     }
 
-    // Budget Dialog
-    if (showBudgetDialog && currentList != null) {
-        var budgetInput by remember {
-            val b = currentList.budget
-            mutableStateOf(if (b != null && b > 0) b.toInt().toString() else "")
-        }
-        AlertDialog(
-            onDismissRequest = { showBudgetDialog = false },
-            title = { Text("Presupuesto de la lista") },
-            text = {
-                Column {
-                    Text("Define un tope de gasto para ver el progreso y advertencias de color.", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = budgetInput,
-                        onValueChange = { budgetInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                        label = { Text("Presupuesto límite (${settings.currencySymbol})") },
-                        placeholder = { Text("Ej. 1500") },
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val parsed = budgetInput.toDoubleOrNull()
-                        viewModel.updateShoppingList(currentList.copy(budget = if (parsed != null && parsed > 0) parsed else null))
-                        showBudgetDialog = false
-                    },
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Text("Guardar presupuesto")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBudgetDialog = false }) { Text("Cancelar") }
-            }
-        )
-    }
-
     // Dialog: Crear nueva lista
     if (showNewListDialog) {
         var listNameInput by remember { mutableStateOf("") }
         var listBudgetInput by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showNewListDialog = false },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
             title = { Text("Nueva lista de compras") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -811,6 +1043,14 @@ fun ComprasScreen(
                         placeholder = { Text("Ej. Despensa semanal, Farmacia") },
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = palette.t1,
+                            unfocusedTextColor = palette.t1,
+                            focusedBorderColor = palette.brand,
+                            unfocusedBorderColor = palette.s3,
+                            focusedLabelColor = palette.accent,
+                            unfocusedLabelColor = palette.t2
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
@@ -820,6 +1060,15 @@ fun ComprasScreen(
                         placeholder = { Text("Ej. 1000") },
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = palette.t1,
+                            unfocusedTextColor = palette.t1,
+                            focusedBorderColor = palette.brand,
+                            unfocusedBorderColor = palette.s3,
+                            focusedLabelColor = palette.accent,
+                            unfocusedLabelColor = palette.t2
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -828,18 +1077,21 @@ fun ComprasScreen(
                 Button(
                     onClick = {
                         if (listNameInput.isNotBlank()) {
-                            val budget = listBudgetInput.toDoubleOrNull()
+                            val budget = listBudgetInput.toDoubleOrNull()?.takeIf { it > 0.0 }
                             viewModel.createShoppingList(listNameInput, budget)
                             showNewListDialog = false
                         }
                     },
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.brand, contentColor = palette.onBrand)
                 ) {
                     Text("Crear lista")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showNewListDialog = false }) { Text("Cancelar") }
+                TextButton(onClick = { showNewListDialog = false }) {
+                    Text("Cancelar", color = palette.t2)
+                }
             }
         )
     }
@@ -849,6 +1101,9 @@ fun ComprasScreen(
         var renameInput by remember { mutableStateOf(currentList.name) }
         AlertDialog(
             onDismissRequest = { showRenameListDialog = false },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
             title = { Text("Renombrar lista") },
             text = {
                 OutlinedTextField(
@@ -857,6 +1112,14 @@ fun ComprasScreen(
                     label = { Text("Nombre") },
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3,
+                        focusedLabelColor = palette.accent,
+                        unfocusedLabelColor = palette.t2
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
             },
@@ -868,18 +1131,21 @@ fun ComprasScreen(
                             showRenameListDialog = false
                         }
                     },
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.brand, contentColor = palette.onBrand)
                 ) {
                     Text("Guardar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameListDialog = false }) { Text("Cancelar") }
+                TextButton(onClick = { showRenameListDialog = false }) {
+                    Text("Cancelar", color = palette.t2)
+                }
             }
         )
     }
 
-    // Section C: Full design modal for registering shopping as expense
+    // Register shopping as expense modal (existing logic unchanged)
     if (showRegisterExpenseSheet && currentList != null) {
         RegisterShoppingExpenseSheet(
             categories = categories,
@@ -906,36 +1172,45 @@ fun ComprasScreen(
     }
 }
 
+private fun shoppingRowShape(index: Int, totalCount: Int): Shape {
+    return when {
+        totalCount <= 1 -> RoundedCornerShape(20.dp)
+        index == 0 -> RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 6.dp)
+        index == totalCount - 1 -> RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 20.dp, bottomEnd = 20.dp)
+        else -> RoundedCornerShape(6.dp)
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ShoppingItemRow(
     item: ShoppingItemEntity,
     currencySymbol: String,
-    modifier: Modifier = Modifier,
-    isDimmed: Boolean = false,
+    palette: InicioPalette.Colors,
+    shape: Shape,
+    isPurchased: Boolean,
     onTogglePurchased: () -> Unit,
     onQuantityChanged: (Double) -> Unit,
     onLongPress: () -> Unit
 ) {
-    val incomeColor = LocalIncomeColor.current
     val numberFont = LocalNumberFontFamily.current
-
     val qtyFormatted = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
     val priceFormatted = CurrencyUtils.formatAmount(item.unitPrice, currencySymbol)
 
-    AlcanciaCard(
-        modifier = modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(shape)
+            .background(palette.s1)
             .combinedClickable(
                 onClick = onTogglePurchased,
                 onLongClick = onLongPress
             )
+            .padding(12.dp)
+            .testTag("shopping_item_${item.id}")
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -943,63 +1218,632 @@ private fun ShoppingItemRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                IconButton(
-                    onClick = onTogglePurchased,
-                    modifier = Modifier.size(36.dp)
+                // Zona táctil mínima 40.dp alrededor del círculo check visual de 28.dp
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable { onTogglePurchased() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (item.isPurchased) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                        contentDescription = "Marcar comprado",
-                        tint = if (item.isPurchased) incomeColor else MaterialTheme.colorScheme.outline
-                    )
+                    if (isPurchased) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(palette.ingreso),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Marcar pendiente",
+                                tint = palette.onBrand,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .border(1.5.dp, palette.t2, CircleShape)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = item.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDimmed) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface,
-                        textDecoration = if (item.isPurchased) TextDecoration.LineThrough else null,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isPurchased) palette.t2 else palette.t1,
+                        textDecoration = if (isPurchased) TextDecoration.LineThrough else null,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-
-                    // Formula: Cantidad × Precio Unitario
                     Text(
                         text = "$qtyFormatted × $priceFormatted",
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = numberFont),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isDimmed) 0.5f else 0.8f)
+                        fontSize = 11.sp,
+                        fontFamily = numberFont,
+                        color = palette.t2,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // Stepper and Subtotal
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = { onQuantityChanged(item.quantity - 1.0) },
-                    modifier = Modifier.size(32.dp)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable { onQuantityChanged(item.quantity - 1.0) },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = Icons.Default.Remove, contentDescription = "Menos", modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = Icons.Default.Remove,
+                        contentDescription = "Menos",
+                        tint = palette.t2,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
 
-                IconButton(
-                    onClick = { onQuantityChanged(item.quantity + 1.0) },
-                    modifier = Modifier.size(32.dp)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable { onQuantityChanged(item.quantity + 1.0) },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Más", modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Más",
+                        tint = palette.t2,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // Subtotal
                 Text(
                     text = CurrencyUtils.formatAmount(item.subtotal, currencySymbol),
-                    style = MaterialTheme.typography.titleMedium.copy(fontFamily = numberFont),
-                    fontWeight = FontWeight.Bold,
-                    color = if (item.isPurchased) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.primary
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = numberFont,
+                    color = if (isPurchased) palette.t2 else palette.t1
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddProductBottomSheet(
+    currencySymbol: String,
+    productSuggestions: List<String>,
+    palette: InicioPalette.Colors,
+    onLookupLastPrice: suspend (String) -> Double?,
+    onDismiss: () -> Unit,
+    onAdd: (name: String, qty: Double, price: Double) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var newProductName by remember { mutableStateOf("") }
+    var newProductQty by remember { mutableStateOf("1") }
+    var newProductPrice by remember { mutableStateOf("") }
+
+    val matchingSuggestions = remember(newProductName, productSuggestions) {
+        if (newProductName.isBlank()) {
+            productSuggestions.take(4)
+        } else {
+            productSuggestions.filter { it.contains(newProductName, ignoreCase = true) }.take(4)
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = palette.s1,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(palette.s3)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "Añadir producto",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.t1
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            OutlinedTextField(
+                value = newProductName,
+                onValueChange = { input ->
+                    newProductName = input
+                    scope.launch {
+                        val lastPrice = onLookupLastPrice(input)
+                        if (lastPrice != null && lastPrice > 0.0 && newProductPrice.isBlank()) {
+                            newProductPrice = if (lastPrice % 1.0 == 0.0) lastPrice.toInt().toString() else lastPrice.toString()
+                        }
+                    }
+                },
+                label = { Text("Producto") },
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = palette.t1,
+                    unfocusedTextColor = palette.t1,
+                    focusedContainerColor = palette.s2,
+                    unfocusedContainerColor = palette.s2,
+                    focusedBorderColor = palette.brand,
+                    unfocusedBorderColor = palette.s3,
+                    focusedLabelColor = palette.accent,
+                    unfocusedLabelColor = palette.t2
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("product_name_input")
+            )
+
+            if (matchingSuggestions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    for (suggestion in matchingSuggestions) {
+                        FilterChip(
+                            selected = false,
+                            onClick = {
+                                newProductName = suggestion
+                                scope.launch {
+                                    val lastPrice = onLookupLastPrice(suggestion)
+                                    if (lastPrice != null && lastPrice > 0.0) {
+                                        newProductPrice = if (lastPrice % 1.0 == 0.0) lastPrice.toInt().toString() else lastPrice.toString()
+                                    }
+                                }
+                            },
+                            label = {
+                                Text(
+                                    text = suggestion,
+                                    fontSize = 12.sp,
+                                    color = palette.t1
+                                )
+                            },
+                            shape = CircleShape,
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = palette.s2,
+                                labelColor = palette.t1
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = false,
+                                borderColor = palette.s3
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = newProductQty,
+                    onValueChange = { newProductQty = it },
+                    label = { Text("Cant.") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedContainerColor = palette.s2,
+                        unfocusedContainerColor = palette.s2,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3,
+                        focusedLabelColor = palette.accent,
+                        unfocusedLabelColor = palette.t2
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("product_qty_input")
+                )
+
+                OutlinedTextField(
+                    value = newProductPrice,
+                    onValueChange = { newProductPrice = it },
+                    label = { Text("Precio U.") },
+                    placeholder = { Text("0.00", color = palette.t2) },
+                    prefix = { Text(currencySymbol, color = palette.t2) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedContainerColor = palette.s2,
+                        unfocusedContainerColor = palette.s2,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3,
+                        focusedLabelColor = palette.accent,
+                        unfocusedLabelColor = palette.t2
+                    ),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .testTag("product_price_input")
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            Button(
+                onClick = {
+                    if (newProductName.isNotBlank()) {
+                        val qty = newProductQty.toDoubleOrNull() ?: 1.0
+                        val price = newProductPrice.toDoubleOrNull() ?: 0.0
+                        onAdd(newProductName, qty, price)
+                    }
+                },
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.brand,
+                    contentColor = palette.onBrand
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("add_item_btn")
+            ) {
+                Text(
+                    text = "Agregar",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.onBrand
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ListBudgetBottomSheet(
+    currentBudget: Double?,
+    currencySymbol: String,
+    palette: InicioPalette.Colors,
+    onDismiss: () -> Unit,
+    onSave: (Double?) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val numberFont = LocalNumberFontFamily.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val hasExistingBudget = currentBudget != null && currentBudget > 0.0
+    var amountString by remember {
+        mutableStateOf(
+            if (hasExistingBudget) {
+                val b = currentBudget!!
+                if (b % 1.0 == 0.0) b.toLong().toString() else b.toString()
+            } else {
+                "0"
+            }
+        )
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = palette.s1,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(palette.s3)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Presupuesto de la lista",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.t1
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Dinero exacto que quieres gastar en esta lista",
+                fontSize = 12.sp,
+                color = palette.t2,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "$currencySymbol$amountString",
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = numberFont,
+                color = palette.t1,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            val keyRows = listOf(
+                listOf("1", "2", "3"),
+                listOf("4", "5", "6"),
+                listOf("7", "8", "9"),
+                listOf(".", "0", "DEL")
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (row in keyRows) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (key in row) {
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        when (key) {
+                                            "DEL" -> {
+                                                amountString = if (amountString.length > 1) {
+                                                    amountString.dropLast(1)
+                                                } else {
+                                                    "0"
+                                                }
+                                            }
+                                            "." -> {
+                                                if (!amountString.contains(".")) {
+                                                    amountString += "."
+                                                }
+                                            }
+                                            else -> {
+                                                if (amountString == "0") {
+                                                    amountString = key
+                                                } else {
+                                                    val dotIdx = amountString.indexOf('.')
+                                                    if (dotIdx == -1 || amountString.length - dotIdx <= 2) {
+                                                        if (amountString.length < 9) {
+                                                            amountString += key
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                color = palette.s2
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (key == "DEL") {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
+                                            contentDescription = "Borrar",
+                                            tint = palette.t1,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = key,
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = palette.t1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    val parsed = amountString.toDoubleOrNull() ?: 0.0
+                    onSave(if (parsed > 0.0) parsed else null)
+                },
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.brand,
+                    contentColor = palette.onBrand
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text(
+                    text = "Guardar",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.onBrand
+                )
+            }
+
+            if (hasExistingBudget) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    onClick = { onSave(null) },
+                    shape = CircleShape,
+                    color = palette.s3,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Quitar presupuesto",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = palette.t1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ListSelectorBottomSheet(
+    shoppingLists: List<ShoppingListEntity>,
+    currentListId: Long?,
+    itemCounts: Map<Long, Int>,
+    palette: InicioPalette.Colors,
+    onDismiss: () -> Unit,
+    onSelectList: (Long) -> Unit,
+    onNewList: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = palette.s1,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(palette.s3)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            for (list in shoppingLists) {
+                val isSelected = list.id == currentListId
+                val count = itemCounts[list.id] ?: 0
+                Surface(
+                    onClick = { onSelectList(list.id) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = palette.s2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = list.name,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = palette.t1,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "$count productos",
+                                fontSize = 11.sp,
+                                color = palette.t2
+                            )
+                        }
+
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Lista activa",
+                                tint = palette.accent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Button(
+                onClick = onNewList,
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.brand,
+                    contentColor = palette.onBrand
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = palette.onBrand,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Nueva lista",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.onBrand
                 )
             }
         }
@@ -1010,6 +1854,7 @@ private fun ShoppingItemRow(
 private fun EditShoppingItemDialog(
     item: ShoppingItemEntity,
     currencySymbol: String,
+    palette: InicioPalette.Colors,
     onDismiss: () -> Unit,
     onSave: (name: String, qty: Double, price: Double) -> Unit
 ) {
@@ -1019,6 +1864,9 @@ private fun EditShoppingItemDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = palette.s1,
+        titleContentColor = palette.t1,
+        textContentColor = palette.t2,
         title = { Text("Editar producto") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1027,6 +1875,14 @@ private fun EditShoppingItemDialog(
                     onValueChange = { name = it },
                     label = { Text("Producto") },
                     shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3,
+                        focusedLabelColor = palette.accent,
+                        unfocusedLabelColor = palette.t2
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -1035,6 +1891,14 @@ private fun EditShoppingItemDialog(
                     label = { Text("Cantidad") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3,
+                        focusedLabelColor = palette.accent,
+                        unfocusedLabelColor = palette.t2
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -1043,6 +1907,14 @@ private fun EditShoppingItemDialog(
                     label = { Text("Precio Unitario ($currencySymbol)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3,
+                        focusedLabelColor = palette.accent,
+                        unfocusedLabelColor = palette.t2
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1056,12 +1928,17 @@ private fun EditShoppingItemDialog(
                         onSave(name.trim(), q, p)
                     }
                 },
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = palette.brand, contentColor = palette.onBrand)
             ) {
                 Text("Guardar")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = palette.t2)
+            }
+        }
     )
 }
 
@@ -1082,7 +1959,7 @@ private fun shareListAsText(
             val qty = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
             val price = CurrencyUtils.formatAmount(item.unitPrice, currencySymbol)
             val sub = CurrencyUtils.formatAmount(item.subtotal, currencySymbol)
-            sb.append("  [ ] ${item.name} (${qty} × ${price} = ${sub})\n")
+            sb.append("  [ ] ${item.name} ($qty × $price = $sub)\n")
         }
         sb.append("\n")
     }
@@ -1093,7 +1970,7 @@ private fun shareListAsText(
         for (item in purchased) {
             val qty = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
             val sub = CurrencyUtils.formatAmount(item.subtotal, currencySymbol)
-            sb.append("  [x] ${item.name} (${qty} = ${sub})\n")
+            sb.append("  [x] ${item.name} ($qty = $sub)\n")
         }
         sb.append("\n")
     }

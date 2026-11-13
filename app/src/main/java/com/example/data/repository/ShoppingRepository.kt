@@ -9,7 +9,12 @@ class ShoppingRepository(
     private val shoppingDao: ShoppingDao
 ) {
     val allLists: Flow<List<ShoppingListEntity>> = shoppingDao.getAllShoppingLists()
+    val allItems: Flow<List<ShoppingItemEntity>> = shoppingDao.getAllShoppingItems()
     val allProductSuggestions: Flow<List<String>> = shoppingDao.getAllDistinctProductNames()
+
+    suspend fun getAllListsSync(): List<ShoppingListEntity> {
+        return shoppingDao.getAllShoppingListsSync()
+    }
 
     fun getItemsForList(listId: Long): Flow<List<ShoppingItemEntity>> {
         return shoppingDao.getItemsForList(listId)
@@ -38,7 +43,7 @@ class ShoppingRepository(
         val newListId = shoppingDao.insertShoppingList(
             ShoppingListEntity(
                 name = newName,
-                budget = originalList?.budget
+                budget = null
             )
         )
         val items = shoppingDao.getItemsForListSync(listId)

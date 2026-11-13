@@ -1,88 +1,69 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.ui.platform.LocalUriHandler
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -96,31 +77,44 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.service.GeminiService
+import com.example.ui.components.CurrencyUtils
 import com.example.ui.model.ActionStatus
 import com.example.ui.model.ChatActionProposal
 import com.example.ui.model.ChatMessage
 import com.example.ui.model.MessageSender
+import com.example.ui.theme.ColorblindExpenseColor
+import com.example.ui.theme.ColorblindIncomeColor
 import com.example.ui.viewmodel.AlcanciaViewModel
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.regex.Pattern
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.util.regex.Pattern
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,17 +131,31 @@ fun AssistantChatScreen(
     val errorDetail by viewModel.chatErrorDetail.collectAsStateWithLifecycle()
     val settings by viewModel.settingsState.collectAsStateWithLifecycle()
 
-    var inputText by remember { mutableStateOf("") }
+    val systemDark = isSystemInDarkTheme()
+    val isDark = when (settings.themeMode) {
+        "LIGHT" -> false
+        "DARK" -> true
+        else -> systemDark
+    }
+    val rawPalette = if (isDark) InicioPalette.Dark else InicioPalette.Light
+    val palette = if (settings.isColorblindPreset) {
+        rawPalette.copy(
+            ingreso = ColorblindIncomeColor,
+            gasto = ColorblindExpenseColor
+        )
+    } else {
+        rawPalette
+    }
+
+    var inputValue by remember { mutableStateOf(TextFieldValue("")) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Track which message IDs have already completed their progressive typewriter reveal
     val revealedMessageIds = remember { mutableStateListOf<String>() }
     val animationsEnabled = settings.hapticLevel != "OFF"
 
-    // Auto-scroll to bottom when new messages arrive or when typing state changes
     LaunchedEffect(messages.size, isTyping) {
         if (messages.isNotEmpty() || isTyping) {
             val target = (messages.size - 1 + if (isTyping) 1 else 0).coerceAtLeast(0)
@@ -178,205 +186,126 @@ fun AssistantChatScreen(
         "3.5 Flash-Lite"
     }
 
-    Scaffold(
+    val isEmptyState = messages.isEmpty() && !isTyping && errorMessage == null
+
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .imePadding(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Asistente",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        // Model Selector Chip (Tap opens bottom sheet)
-                        FilterChip(
-                            selected = true,
-                            onClick = {
-                                showModelBottomSheet = true
-                            },
-                            label = {
-                                Text(
-                                    text = currentModelLabel,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "Seleccionar modelo",
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                selectedLeadingIconColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.testTag("model_toggle_chip")
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag("chat_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { viewModel.resetChatConversation() },
-                        modifier = Modifier.testTag("chat_new_chat_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Nuevo chat",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        },
-        bottomBar = {
+            .background(palette.bg)
+    ) {
+        // BLOQUE A: Encabezado único con statusBarsPadding()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Surface(
-                color = MaterialTheme.colorScheme.surface,
+                onClick = onDismiss,
+                shape = CircleShape,
+                color = palette.s2,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .size(40.dp)
+                    .testTag("chat_back_button")
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        placeholder = {
-                            Text(
-                                "Pregunta o pide algo...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("chat_input_field"),
-                        shape = RoundedCornerShape(26.dp),
-                        maxLines = 5,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                            unfocusedBorderColor = Color.Transparent
-                        ),
-                        keyboardOptions = KeyboardOptions.Default.copy(
-                            imeAction = ImeAction.Send
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onSend = {
-                                if (inputText.isNotBlank() && !isTyping) {
-                                    val textToSend = inputText
-                                    inputText = ""
-                                    viewModel.sendChatMessage(textToSend)
-                                }
-                            }
-                        )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                        tint = palette.accent,
+                        modifier = Modifier.size(20.dp)
                     )
+                }
+            }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-                    // Smooth transition between Send and Stop
-                    AnimatedContent(
-                        targetState = isTyping,
-                        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
-                        label = "send_stop_button"
-                    ) { typing ->
-                        if (typing) {
-                            IconButton(
-                                onClick = { viewModel.stopGeneration() },
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.errorContainer)
-                                    .testTag("chat_stop_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Stop,
-                                    contentDescription = "Detener",
-                                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        } else {
-                            val canSend = inputText.isNotBlank()
-                            IconButton(
-                                onClick = {
-                                    if (canSend) {
-                                        val textToSend = inputText
-                                        inputText = ""
-                                        viewModel.sendChatMessage(textToSend)
-                                    }
-                                },
-                                enabled = canSend,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (canSend) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceContainerHigh
-                                    )
-                                    .testTag("chat_send_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Enviar",
-                                    tint = if (canSend) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Asistente",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.t1,
+                    maxLines = 1,
+                    softWrap = false
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Surface(
+                    onClick = { showModelBottomSheet = true },
+                    shape = CircleShape,
+                    color = palette.s2,
+                    modifier = Modifier
+                        .height(32.dp)
+                        .testTag("model_toggle_chip")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = palette.accent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = currentModelLabel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = palette.accent,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Seleccionar modelo",
+                            tint = palette.t2,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Surface(
+                onClick = { viewModel.resetChatConversation() },
+                shape = CircleShape,
+                color = palette.s2,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("chat_new_chat_button")
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Nuevo chat",
+                        tint = palette.accent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         }
-    ) { innerPadding ->
+
+        // Zona central (Estado vacío o Conversación + fade inferior de 28dp)
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
+                .fillMaxWidth()
         ) {
-            if (messages.isEmpty() && !isTyping && errorMessage == null) {
-                // Empty state (Gemini / ChatGPT style)
+            if (isEmptyState) {
                 EmptyChatGreeting(
+                    palette = palette,
                     onSuggestionClick = { suggestion ->
                         viewModel.sendChatMessage(suggestion)
                     }
@@ -385,7 +314,7 @@ fun AssistantChatScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 36.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(
@@ -394,13 +323,14 @@ fun AssistantChatScreen(
                     ) { msg ->
                         val isLastAssistant = msg == messages.lastOrNull { it.sender == MessageSender.ASSISTANT }
                         val shouldAnimateTypewriter = isLastAssistant &&
-                                msg.id !in revealedMessageIds &&
-                                animationsEnabled &&
-                                msg.sender == MessageSender.ASSISTANT
+                            msg.id !in revealedMessageIds &&
+                            animationsEnabled &&
+                            msg.sender == MessageSender.ASSISTANT
 
                         ChatMessageItem(
                             message = msg,
                             currencySymbol = settings.currencySymbol,
+                            palette = palette,
                             animateTypewriter = shouldAnimateTypewriter,
                             onTypewriterCompleted = {
                                 if (msg.id !in revealedMessageIds) {
@@ -416,15 +346,16 @@ fun AssistantChatScreen(
 
                     if (isTyping) {
                         item(key = "thinking_indicator") {
-                            PulsingThinkingIndicator()
+                            PulsingThinkingIndicator(palette = palette)
                         }
                     }
 
                     if (errorMessage != null) {
                         item(key = "error_message_card") {
-                            ChatErrorCard(
+                            ChatErrorBlock(
                                 errorMessage = errorMessage ?: "",
                                 errorDetail = errorDetail,
+                                palette = palette,
                                 onRetry = { viewModel.retryLastTurn() },
                                 onNewChat = { viewModel.resetChatConversation() }
                             )
@@ -433,88 +364,289 @@ fun AssistantChatScreen(
                 }
             }
 
-            // Floating "↓" button when user scrolls up
-            AnimatedVisibility(
-                visible = canScrollForward,
-                enter = fadeIn() + slideInVertically { it / 2 },
-                exit = fadeOut(),
+            // BLOQUE E1: Difuminado inferior de 28dp sobre el scroll hacia la zona inferior sólida
+            Box(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp)
-            ) {
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                palette.bg.copy(alpha = 0f),
+                                palette.bg
+                            )
+                        )
+                    )
+            )
+
+            // Botón flotante para bajar al final cuando hay historial por debajo
+            if (!isEmptyState && canScrollForward) {
                 Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            coroutineScope.launch {
-                                val target = (messages.size - 1 + if (isTyping) 1 else 0).coerceAtLeast(0)
-                                listState.animateScrollToItem(target)
-                            }
+                    onClick = {
+                        coroutineScope.launch {
+                            val target = (messages.size - 1 + if (isTyping) 1 else 0).coerceAtLeast(0)
+                            listState.animateScrollToItem(target)
                         }
+                    },
+                    shape = CircleShape,
+                    color = palette.s3,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp)
+                        .size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = "Ir al final",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
+                            tint = palette.t1,
+                            modifier = Modifier.size(22.dp)
                         )
+                    }
+                }
+            }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+            )
+        }
+
+        // BLOQUE E2-E4: Zona inferior sólida con navigationBarsPadding().imePadding() UNA sola vez
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.bg)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(top = 4.dp, bottom = 12.dp)
+        ) {
+            if (!isEmptyState) {
+                Text(
+                    text = "Puedes decir algo como \"aporte de \$50 a ahorros\"",
+                    fontSize = 12.sp,
+                    color = palette.t2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val quickTemplates = remember {
+                    listOf(
+                        "Gasto" to "Gasto de $",
+                        "Ingreso" to "Ingreso de $",
+                        "Aporte a meta" to "Aporte a meta de $",
+                        "Compra" to "Agregar a compras: "
+                    )
+                }
+
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(quickTemplates) { (label, template) ->
+                        Surface(
+                            onClick = {
+                                inputValue = TextFieldValue(
+                                    text = template,
+                                    selection = TextRange(template.length)
+                                )
+                            },
+                            shape = CircleShape,
+                            color = palette.s2,
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = palette.t1,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = palette.s1,
+                border = BorderStroke(
+                    width = 1.5.dp,
+                    brush = Brush.horizontalGradient(InicioPalette.AiGradient)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .heightIn(min = 56.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = palette.ahorro,
+                        modifier = Modifier.size(22.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (inputValue.text.isEmpty()) {
+                            Text(
+                                text = "Dime qué registrar…",
+                                fontSize = 14.sp,
+                                color = palette.t2,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        BasicTextField(
+                            value = inputValue,
+                            onValueChange = { inputValue = it },
+                            textStyle = TextStyle(
+                                fontSize = 14.sp,
+                                color = palette.t1,
+                                lineHeight = 20.sp
+                            ),
+                            cursorBrush = SolidColor(palette.accent),
+                            maxLines = 4,
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(
+                                onSend = {
+                                    val trimmed = inputValue.text.trim()
+                                    if (trimmed.isNotEmpty() && !isTyping) {
+                                        inputValue = TextFieldValue("")
+                                        viewModel.sendChatMessage(trimmed)
+                                    }
+                                }
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("chat_input_field")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    if (isTyping) {
+                        Surface(
+                            onClick = { viewModel.stopGeneration() },
+                            shape = CircleShape,
+                            color = palette.gasto,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .testTag("chat_stop_button")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Stop,
+                                    contentDescription = "Detener",
+                                    tint = palette.onBrand,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        Surface(
+                            onClick = {
+                                val trimmed = inputValue.text.trim()
+                                if (trimmed.isNotEmpty()) {
+                                    inputValue = TextFieldValue("")
+                                    viewModel.sendChatMessage(trimmed)
+                                }
+                            },
+                            shape = CircleShape,
+                            color = palette.brand,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .testTag("chat_send_button")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowUpward,
+                                    contentDescription = "Enviar",
+                                    tint = palette.onBrand,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
+    // BLOQUE B: Hoja "Modelo del Asistente"
     if (showModelBottomSheet) {
         ModalBottomSheet(
             onDismissRequest = { showModelBottomSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = 6.dp,
+            containerColor = palette.s1,
             dragHandle = {
-                Surface(
+                Box(
                     modifier = Modifier
                         .padding(top = 12.dp, bottom = 8.dp)
-                        .size(width = 36.dp, height = 4.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                ) {}
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(palette.s3)
+                )
             }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 28.dp)
             ) {
                 Text(
                     text = "Modelo del Asistente",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.t1
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Elige el modelo según tu tipo de consulta. Al cambiar de modelo se iniciará un nuevo chat.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
+                    fontSize = 12.sp,
+                    color = palette.t2,
+                    lineHeight = 17.sp
                 )
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Option 1: 3.5 Flash-Lite
-                val isLiteActive = settings.cloudAiModel == GeminiService.DEFAULT_MODEL
+                val isLiteActive = settings.cloudAiModel != GeminiService.FLASH_MODEL
                 ModelOptionItem(
                     title = "3.5 Flash-Lite",
                     description = "Rápido y ligero, ideal para el día a día. Permite más usos.",
                     isActive = isLiteActive,
                     badge = "Predeterminado",
+                    palette = palette,
                     onClick = {
                         showModelBottomSheet = false
                         viewModel.selectCloudAiModel(GeminiService.DEFAULT_MODEL)
@@ -524,15 +656,15 @@ fun AssistantChatScreen(
                     }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Option 2: 3.5 Flash
                 val isFlashActive = settings.cloudAiModel == GeminiService.FLASH_MODEL
                 ModelOptionItem(
                     title = "3.5 Flash",
                     description = "Más capaz con consultas largas, pero gasta más cuota.",
                     isActive = isFlashActive,
                     badge = null,
+                    palette = palette,
                     onClick = {
                         showModelBottomSheet = false
                         viewModel.selectCloudAiModel(GeminiService.FLASH_MODEL)
@@ -542,9 +674,8 @@ fun AssistantChatScreen(
                     }
                 )
 
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Subtle footer
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -560,15 +691,14 @@ fun AssistantChatScreen(
                     Icon(
                         imageVector = Icons.Default.OpenInNew,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(15.dp)
+                        tint = palette.t2,
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Los límites de uso dependen de tu cuenta. Consúltalos en Google AI Studio.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary,
                         fontSize = 12.sp,
+                        color = palette.t2,
                         lineHeight = 16.sp
                     )
                 }
@@ -579,26 +709,28 @@ fun AssistantChatScreen(
 
 @Composable
 private fun EmptyChatGreeting(
+    palette: InicioPalette.Colors,
     onSuggestionClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 32.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-            modifier = Modifier.size(72.dp)
+            color = palette.s2,
+            modifier = Modifier.size(88.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(36.dp)
+                    tint = palette.accent,
+                    modifier = Modifier.size(40.dp)
                 )
             }
         }
@@ -607,10 +739,11 @@ private fun EmptyChatGreeting(
 
         Text(
             text = "¿En qué te ayudo con tus ahorros?",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Medium,
+            color = palette.t1,
+            textAlign = TextAlign.Center,
+            lineHeight = 28.sp
         )
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -624,28 +757,35 @@ private fun EmptyChatGreeting(
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             suggestions.forEach { suggestion ->
-                SuggestionChip(
+                Surface(
                     onClick = { onSuggestionClick(suggestion) },
-                    label = {
+                    shape = CircleShape,
+                    color = palette.s2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .testTag("suggestion_chip_${suggestion.replace(" ", "_")}")
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
                             text = suggestion,
-                            style = MaterialTheme.typography.bodyMedium,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(vertical = 4.dp)
+                            color = palette.t1,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .testTag("suggestion_chip_${suggestion.replace(" ", "_")}")
-                )
+                    }
+                }
             }
         }
     }
@@ -655,6 +795,7 @@ private fun EmptyChatGreeting(
 private fun ChatMessageItem(
     message: ChatMessage,
     currencySymbol: String,
+    palette: InicioPalette.Colors,
     animateTypewriter: Boolean,
     onTypewriterCompleted: () -> Unit,
     onCopyText: (String) -> Unit,
@@ -665,77 +806,69 @@ private fun ChatMessageItem(
     val isUser = message.sender == MessageSender.USER
 
     if (isUser) {
-        // User Message: rounded bubble on the right
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.End
-        ) {
-            Surface(
-                shape = RoundedCornerShape(
-                    topStart = 20.dp,
-                    topEnd = 20.dp,
-                    bottomStart = 20.dp,
-                    bottomEnd = 4.dp
-                ),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .widthIn(max = 310.dp)
-                    .pointerInput(message.text) {
-                        detectTapGestures(
-                            onLongPress = { onCopyText(message.text) }
-                        )
-                    }
-                    .testTag("user_chat_bubble")
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val bubbleMaxWidth = maxWidth * 0.8f
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
             ) {
-                Text(
-                    text = message.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    lineHeight = 22.sp
-                )
+                Surface(
+                    shape = RoundedCornerShape(
+                        topStart = 20.dp,
+                        topEnd = 20.dp,
+                        bottomStart = 20.dp,
+                        bottomEnd = 6.dp
+                    ),
+                    color = palette.s2,
+                    modifier = Modifier
+                        .widthIn(max = bubbleMaxWidth)
+                        .pointerInput(message.text) {
+                            detectTapGestures(
+                                onLongPress = { onCopyText(message.text) }
+                            )
+                        }
+                        .testTag("user_chat_bubble")
+                ) {
+                    Text(
+                        text = message.text,
+                        fontSize = 15.sp,
+                        color = palette.t1,
+                        lineHeight = 21.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
             }
         }
     } else {
-        // Assistant Message: NO bubble, full width with small avatar on top (Gemini style)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("assistant_chat_message")
         ) {
-            // Header with small avatar ✨
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 6.dp)
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = palette.accent,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Alcancía",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.t2
                 )
             }
 
-            // Message text with Markdown + progressive reveal
             if (message.text.isNotBlank()) {
                 if (animateTypewriter) {
                     TypewriterMarkdownText(
                         fullText = message.text,
+                        color = palette.t1,
                         onComplete = onTypewriterCompleted,
                         onLongPress = { onCopyText(message.text) },
                         modifier = Modifier.fillMaxWidth()
@@ -743,7 +876,7 @@ private fun ChatMessageItem(
                 } else {
                     MarkdownText(
                         markdown = message.text,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = palette.t1,
                         modifier = Modifier
                             .fillMaxWidth()
                             .pointerInput(message.text) {
@@ -754,7 +887,6 @@ private fun ChatMessageItem(
                     )
                 }
 
-                // Actions row under assistant message: Copy, Regenerate
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -764,38 +896,36 @@ private fun ChatMessageItem(
                 ) {
                     IconButton(
                         onClick = { onCopyText(message.text) },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
                             contentDescription = "Copiar mensaje",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            tint = palette.t2,
                             modifier = Modifier.size(16.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
                     IconButton(
                         onClick = onRegenerate,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Regenerar respuesta",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            tint = palette.t2,
                             modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
 
-            // Action Proposal Card integrated into the chat
             if (message.actionProposal != null) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 ActionProposalCard(
                     proposal = message.actionProposal,
                     currencySymbol = currencySymbol,
+                    palette = palette,
                     onConfirm = { onConfirmProposal(message.actionProposal) },
                     onCancel = { onCancelProposal(message.actionProposal) }
                 )
@@ -807,6 +937,7 @@ private fun ChatMessageItem(
 @Composable
 private fun TypewriterMarkdownText(
     fullText: String,
+    color: Color,
     onComplete: () -> Unit,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier
@@ -827,11 +958,10 @@ private fun TypewriterMarkdownText(
 
     MarkdownText(
         markdown = visibleText,
-        color = MaterialTheme.colorScheme.onSurface,
+        color = color,
         modifier = modifier.pointerInput(fullText) {
             detectTapGestures(
                 onTap = {
-                    // Tap immediately displays the full text
                     revealedLength = fullText.length
                     onComplete()
                 },
@@ -841,16 +971,35 @@ private fun TypewriterMarkdownText(
     )
 }
 
-private fun formatCardShortDate(rawDate: String?): String {
+private val SPANISH_MONTHS_SHORT = listOf(
+    "ene", "feb", "mar", "abr", "may", "jun",
+    "jul", "ago", "sep", "oct", "nov", "dic"
+)
+
+private fun formatProposalCardDate(rawDate: String?): String {
+    val todayCal = Calendar.getInstance()
+    val todayY = todayCal.get(Calendar.YEAR)
+    val todayM = todayCal.get(Calendar.MONTH)
+    val todayD = todayCal.get(Calendar.DAY_OF_MONTH)
+
     if (rawDate.isNullOrBlank() || rawDate.equals("hoy", ignoreCase = true)) {
-        val sdf = SimpleDateFormat("d 'de' MMM", Locale("es", "MX"))
-        return sdf.format(Date()).replace(".", "")
+        return "hoy, $todayD ${SPANISH_MONTHS_SHORT.getOrElse(todayM) { "" }}"
     }
+
     return try {
-        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val parsed = parser.parse(rawDate)
         if (parsed != null) {
-            SimpleDateFormat("d 'de' MMM", Locale("es", "MX")).format(parsed).replace(".", "")
+            val cal = Calendar.getInstance().apply { time = parsed }
+            val y = cal.get(Calendar.YEAR)
+            val m = cal.get(Calendar.MONTH)
+            val d = cal.get(Calendar.DAY_OF_MONTH)
+            val shortStr = "$d ${SPANISH_MONTHS_SHORT.getOrElse(m) { "" }}"
+            if (y == todayY && m == todayM && d == todayD) {
+                "hoy, $shortStr"
+            } else {
+                shortStr
+            }
         } else {
             rawDate
         }
@@ -863,6 +1012,7 @@ private fun formatCardShortDate(rawDate: String?): String {
 private fun ActionProposalCard(
     proposal: ChatActionProposal,
     currencySymbol: String,
+    palette: InicioPalette.Colors,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -872,279 +1022,205 @@ private fun ActionProposalCard(
     val isConfirmed = proposal.status == ActionStatus.CONFIRMED
     val isCancelled = proposal.status == ActionStatus.CANCELLED
 
-    // High contrast container & content colors
-    val containerColor = if (isPending && isDestructive) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
+    val tipoArg = proposal.arguments["tipo"]?.toString()?.uppercase()
+    val isGoalTool = proposal.toolName in listOf(
+        "crear_meta", "editar_meta", "aportar_a_meta", "retirar_de_meta"
+    )
+    val isShoppingTool = proposal.toolName in listOf(
+        "crear_lista_compras", "agregar_producto_compra", "editar_producto_compra"
+    )
+
+    val (iconVector, iconTint) = when {
+        isDestructive -> Icons.Default.Delete to palette.gasto
+        proposal.toolName == "agregar_movimiento" || proposal.toolName == "editar_movimiento" -> {
+            when (tipoArg) {
+                "INCOME" -> Icons.Default.ArrowUpward to palette.ingreso
+                "SAVING_DEPOSIT" -> Icons.Default.Savings to palette.ahorro
+                else -> Icons.Default.ArrowDownward to palette.gasto
+            }
+        }
+        isGoalTool -> Icons.Default.Savings to palette.ahorro
+        isShoppingTool -> Icons.Default.ShoppingCart to palette.accent
+        else -> Icons.Default.AutoAwesome to palette.accent
     }
 
-    val contentColor = if (isPending && isDestructive) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor,
-            contentColor = contentColor
-        ),
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = palette.s1,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 2.dp)
             .testTag("action_proposal_card")
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            // Header
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isDestructive && isPending) Icons.Default.Warning else Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = if (isDestructive && isPending) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    val dynamicTitle = when {
-                        isPending -> "Confirmar acción"
-                        isConfirmed -> "Acción realizada"
-                        isCancelled -> "Acción cancelada"
-                        else -> "Acción realizada"
-                    }
-                    Text(
-                        text = dynamicTitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = contentColor
-                    )
-                }
-
-                // Status Badge when resolved
-                if (isConfirmed) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Confirmado ✓",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                } else if (isCancelled) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Text(
-                            text = "Cancelado",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                Surface(
+                    shape = CircleShape,
+                    color = iconTint.copy(alpha = 0.18f),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = iconVector,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-            // Action Summary / Description (cleaned of any technical IDs or placeholder artifacts)
-            val cleanSummary = proposal.summary
-                .replace(Regex("#[0-9]+"), "")
-                .replace("Categoría actual", "Sin categoría")
-                .replace("Sin nota", "")
-                .replace(" en ''", "")
-                .replace("  ", " ")
-                .trim()
+                Column(modifier = Modifier.weight(1f)) {
+                    if (proposal.toolName == "agregar_movimiento") {
+                        val tipoLabel = when (tipoArg) {
+                            "INCOME" -> "Ingreso"
+                            "SAVING_DEPOSIT" -> "Ahorro"
+                            else -> "Gasto"
+                        }
+                        val monto = proposal.arguments["monto"]?.toString()?.toDoubleOrNull() ?: 0.0
+                        val formattedAmount = CurrencyUtils.formatAmount(monto, currencySymbol)
+                        Text(
+                            text = "$tipoLabel de $formattedAmount",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = palette.t1,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
 
-            Text(
-                text = cleanSummary,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = contentColor,
-                lineHeight = 20.sp
-            )
+                        Spacer(modifier = Modifier.height(2.dp))
 
-            // Extracted key details (Amount, Category, Date/Time, Note) - NEVER technical IDs!
-            val amountVal = proposal.arguments["monto"] ?: proposal.arguments["montoObjetivo"] ?: proposal.arguments["precioEstimado"]
-            val amountNum = amountVal?.toString()?.toDoubleOrNull()
-            val rawCategory = proposal.arguments["categoria"]?.toString()
-            val categoryVal = when {
-                proposal.toolName in listOf("crear_meta", "editar_meta", "eliminar_meta", "aportar_a_meta", "retirar_de_meta") -> null
-                rawCategory.isNullOrBlank() || rawCategory.contains("actual", ignoreCase = true) || rawCategory.equals("null", ignoreCase = true) -> "Sin categoría"
-                else -> rawCategory
-            }
-            val rawDate = proposal.arguments["fecha"]?.toString() ?: proposal.arguments["fechaLimite"]?.toString()
-            val dateVal = if (!rawDate.isNullOrBlank()) formatCardShortDate(rawDate) else null
-            val rawNote = proposal.arguments["nota"]?.toString()
-            val noteVal = rawNote?.takeIf {
-                it.isNotBlank() && !it.equals("Sin nota", ignoreCase = true) && !it.equals("null", ignoreCase = true)
-            }
-
-            if (amountNum != null || categoryVal != null || dateVal != null || noteVal != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (isPending && isDestructive) {
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                        val rawNote = proposal.arguments["nota"]?.toString()
+                        val concepto = rawNote?.takeIf {
+                            it.isNotBlank() &&
+                                !it.equals("Sin nota", ignoreCase = true) &&
+                                !it.equals("null", ignoreCase = true)
+                        }
+                        val dateStr = formatProposalCardDate(proposal.arguments["fecha"]?.toString())
+                        val line2 = if (concepto != null) "$concepto · $dateStr" else dateStr
+                        Text(
+                            text = line2,
+                            fontSize = 12.sp,
+                            color = palette.t2,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     } else {
-                        MaterialTheme.colorScheme.surface
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (amountNum != null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Monto:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    text = "$currencySymbol${String.format(Locale.getDefault(), "%,.2f", amountNum)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                        if (categoryVal != null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Categoría:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    text = categoryVal,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                        if (dateVal != null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Fecha:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    text = dateVal,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                        if (noteVal != null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Nota:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    text = noteVal,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                        val cleanSummary = proposal.summary
+                            .replace(Regex("#[0-9]+"), "")
+                            .replace("Sin nota", "")
+                            .replace(" en ''", "")
+                            .replace("  ", " ")
+                            .trim()
+                        Text(
+                            text = cleanSummary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = palette.t1,
+                            lineHeight = 19.sp
+                        )
+                        if (isPending && isDestructive) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Esta acción no se puede deshacer",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = palette.gasto
+                            )
                         }
                     }
                 }
             }
 
-            // Single notice: "Esta acción no se puede deshacer" - only once and only while pending and destructive
-            if (isPending && isDestructive) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Esta acción no se puede deshacer",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-
-            // Result text if completed
-            if (!proposal.resultText.isNullOrBlank() && !isPending) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = proposal.resultText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isConfirmed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Buttons while pending
             if (isPending) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(
+                    Surface(
                         onClick = onCancel,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.testTag("proposal_cancel_button")
+                        shape = CircleShape,
+                        color = palette.s3,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .testTag("proposal_cancel_button")
                     ) {
-                        Text("Cancelar")
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Cancelar",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = palette.t1,
+                                maxLines = 1
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Button(
+                    Surface(
                         onClick = onConfirm,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                            contentColor = if (isDestructive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
-                        ),
-                        modifier = Modifier.testTag("proposal_confirm_button")
+                        shape = CircleShape,
+                        color = palette.brand,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .testTag("proposal_confirm_button")
                     ) {
-                        Text("Confirmar")
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Confirmar",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = palette.onBrand,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             } else if (isExecuting) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
+                        color = palette.accent
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Ejecutando acción...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontSize = 12.sp,
+                        color = palette.t2
                     )
                 }
+            } else if (isConfirmed) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = palette.ingreso,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Registrado",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.ingreso
+                    )
+                }
+            } else if (isCancelled) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = proposal.resultText?.takeIf { it.isNotBlank() } ?: "Cancelado",
+                    fontSize = 13.sp,
+                    color = palette.t2
+                )
             }
         }
     }
@@ -1156,13 +1232,14 @@ private fun ModelOptionItem(
     description: String,
     isActive: Boolean,
     badge: String?,
+    palette: InicioPalette.Colors,
     onClick: () -> Unit
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = if (isActive) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+        shape = RoundedCornerShape(20.dp),
+        color = palette.s2,
+        border = if (isActive) BorderStroke(1.5.dp, palette.brand) else null,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -1175,22 +1252,22 @@ private fun ModelOptionItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.t1
                     )
                     if (badge != null) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            shape = CircleShape,
+                            color = palette.s3
                         ) {
                             Text(
                                 text = badge,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = palette.t2,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
                     }
@@ -1198,9 +1275,9 @@ private fun ModelOptionItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
+                    fontSize = 12.sp,
+                    color = palette.t2,
+                    lineHeight = 17.sp
                 )
             }
 
@@ -1208,15 +1285,15 @@ private fun ModelOptionItem(
 
             Surface(
                 shape = CircleShape,
-                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.size(24.dp)
+                color = if (isActive) palette.accent else palette.s3,
+                modifier = Modifier.size(28.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (isActive) {
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Activo",
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            tint = palette.s1,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1227,30 +1304,32 @@ private fun ModelOptionItem(
 }
 
 @Composable
-private fun PulsingThinkingIndicator() {
+private fun PulsingThinkingIndicator(
+    palette: InicioPalette.Colors
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_dots")
 
     val dot1Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
+        initialValue = 0.25f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(600, delayMillis = 0), RepeatMode.Reverse),
         label = "d1"
     )
     val dot2Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
+        initialValue = 0.25f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(600, delayMillis = 200), RepeatMode.Reverse),
         label = "d2"
     )
     val dot3Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
+        initialValue = 0.25f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(600, delayMillis = 400), RepeatMode.Reverse),
         label = "d3"
     )
     val iconScale by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.1f,
+        initialValue = 0.92f,
+        targetValue = 1.08f,
         animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
         label = "iconScale"
     )
@@ -1261,165 +1340,177 @@ private fun PulsingThinkingIndicator() {
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
+        Icon(
+            imageVector = Icons.Default.AutoAwesome,
+            contentDescription = null,
+            tint = palette.accent,
             modifier = Modifier
-                .size(26.dp)
+                .size(18.dp)
                 .scale(iconScale)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
-        }
+        )
 
         Spacer(modifier = Modifier.width(10.dp))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
             modifier = Modifier.padding(vertical = 6.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(7.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = dot1Alpha))
+                    .background(palette.accent.copy(alpha = dot1Alpha))
             )
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(7.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = dot2Alpha))
+                    .background(palette.accent.copy(alpha = dot2Alpha))
             )
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(7.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = dot3Alpha))
+                    .background(palette.accent.copy(alpha = dot3Alpha))
             )
         }
     }
 }
 
 @Composable
-private fun ChatErrorCard(
+private fun ChatErrorBlock(
     errorMessage: String,
     errorDetail: String?,
+    palette: InicioPalette.Colors,
     onRetry: () -> Unit,
     onNewChat: () -> Unit
 ) {
     var isDetailExpanded by remember { mutableStateOf(false) }
 
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
-        ),
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .testTag("chat_error_card")
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.ErrorOutline,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = if (errorMessage.contains("Clave", ignoreCase = true)) {
-                        "Clave de API inválida"
-                    } else if (errorMessage.contains("conexión", ignoreCase = true)) {
-                        "Problema de conexión"
-                    } else {
-                        "Hubo un problema al responder"
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                tint = palette.gasto,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = errorMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.95f)
+                text = "Alcancía",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.t2
+            )
+        }
+
+        val headline = when {
+            errorMessage.contains("Clave", ignoreCase = true) -> "Clave de API inválida"
+            errorMessage.contains("conexión", ignoreCase = true) -> "Problema de conexión"
+            else -> "Hubo un problema al responder"
+        }
+
+        Text(
+            text = headline,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = palette.gasto
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = errorMessage,
+            fontSize = 15.sp,
+            color = palette.gasto,
+            lineHeight = 22.sp
+        )
+
+        if (!errorDetail.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = if (isDetailExpanded) "Ocultar detalle técnico ▴" else "Ver detalle técnico ▾",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.t2,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { isDetailExpanded = !isDetailExpanded }
+                    .padding(vertical = 4.dp)
             )
 
-            if (!errorDetail.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { isDetailExpanded = !isDetailExpanded }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (isDetailExpanded) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = palette.s2,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = if (isDetailExpanded) "Ocultar detalle técnico ▴" else "Ver detalle técnico ▾",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onErrorContainer
+                        text = errorDetail,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = palette.t1,
+                        modifier = Modifier.padding(10.dp)
                     )
                 }
+            }
+        }
 
-                if (isDetailExpanded) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = errorDetail,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(10.dp)
-                        )
-                    }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                onClick = onNewChat,
+                shape = CircleShape,
+                color = palette.s3,
+                modifier = Modifier
+                    .height(40.dp)
+                    .testTag("error_new_chat_btn")
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Nuevo chat",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.t1
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+            Surface(
+                onClick = onRetry,
+                shape = CircleShape,
+                color = palette.gasto,
+                modifier = Modifier
+                    .height(40.dp)
+                    .testTag("error_retry_btn")
             ) {
-                OutlinedButton(
-                    onClick = onNewChat,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.testTag("error_new_chat_btn")
+                Box(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("Nuevo chat")
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Button(
-                    onClick = onRetry,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    ),
-                    modifier = Modifier.testTag("error_retry_btn")
-                ) {
-                    Text("Reintentar")
+                    Text(
+                        text = "Reintentar",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.onBrand
+                    )
                 }
             }
         }
@@ -1430,22 +1521,21 @@ private fun ChatErrorCard(
 fun MarkdownText(
     markdown: String,
     modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurface
+    color: Color = Color.Unspecified
 ) {
     val styledText = remember(markdown) {
         parseMarkdownToAnnotatedString(markdown)
     }
     Text(
         text = styledText,
-        style = MaterialTheme.typography.bodyLarge,
+        fontSize = 15.sp,
         color = color,
         modifier = modifier,
-        lineHeight = 24.sp
+        lineHeight = 22.sp
     )
 }
 
 private fun parseMarkdownToAnnotatedString(input: String): AnnotatedString {
-    // 1. Process headers and bullet lists line by line
     val lines = input.lines().map { line ->
         val trimmed = line.trimStart()
         when {
@@ -1470,10 +1560,8 @@ private fun parseMarkdownToAnnotatedString(input: String): AnnotatedString {
     }
     val processedText = lines.joinToString("\n")
 
-    // 2. Parse inline **bold**, *italic*, and `code`
     return buildAnnotatedString {
         var cursor = 0
-        // Group 2: bold, Group 4: italic, Group 6: inline code
         val pattern = Pattern.compile("(\\*\\*(.*?)\\*\\*)|((?<!\\*)\\*([^*]+)\\*(?!\\*))|(`(.*?)`)")
         val matcher = pattern.matcher(processedText)
 

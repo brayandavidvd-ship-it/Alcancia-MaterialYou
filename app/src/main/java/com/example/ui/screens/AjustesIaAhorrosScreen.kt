@@ -3,13 +3,15 @@ package com.example.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,31 +19,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Lan
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -68,7 +66,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.ui.components.AlcanciaCard
+import com.example.data.service.GeminiService
 import com.example.ui.theme.LocalIsCompactDensity
 import com.example.ui.viewmodel.AlcanciaViewModel
 import kotlinx.coroutines.launch
@@ -82,11 +80,11 @@ fun AjustesIaAhorrosScreen(
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val settings by viewModel.settingsState.collectAsStateWithLifecycle()
+    val palette = resolveInicioPalette(settings)
     val isCompact = LocalIsCompactDensity.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Cloud AI (Gemini) states
     var cloudModelInput by remember(settings.cloudAiModel) {
         mutableStateOf(settings.cloudAiModel)
     }
@@ -100,27 +98,10 @@ fun AjustesIaAhorrosScreen(
     var cloudSuccessMessage by remember { mutableStateOf<String?>(null) }
     var cloudErrorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Local AI (Ollama) states
-    var localServerUrlInput by remember(settings.localAiServerUrl) {
-        mutableStateOf(settings.localAiServerUrl)
-    }
-    var localModelInput by remember(settings.localAiModel) {
-        mutableStateOf(settings.localAiModel)
-    }
-
-    var isTestingLocalConnection by remember { mutableStateOf(false) }
-    var localSuccessMessage by remember { mutableStateOf<String?>(null) }
-    var localErrorMessage by remember { mutableStateOf<String?>(null) }
-
-    fun saveLocalConfig(enabled: Boolean = settings.isLocalAiEnabled) {
-        viewModel.setLocalAiConfig(
-            enabled = enabled,
-            serverUrl = localServerUrlInput,
-            model = localModelInput
-        )
-    }
-
-    fun saveCloudConfig(enabled: Boolean = settings.isCloudAiEnabled, consentAccepted: Boolean = settings.cloudAiConsentAccepted) {
+    fun saveCloudConfig(
+        enabled: Boolean = settings.isCloudAiEnabled,
+        consentAccepted: Boolean = settings.cloudAiConsentAccepted
+    ) {
         viewModel.saveGeminiApiKey(apiKeyInput)
         viewModel.setCloudAiConfig(
             enabled = enabled,
@@ -129,30 +110,32 @@ fun AjustesIaAhorrosScreen(
         )
     }
 
-    // Consent Dialog (Rule 2)
     if (showConsentDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showConsentDialog = false
-            },
+            onDismissRequest = { showConsentDialog = false },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
             icon = {
                 Icon(
                     imageVector = Icons.Default.Cloud,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = palette.ahorro,
                     modifier = Modifier.size(32.dp)
                 )
             },
             title = {
                 Text(
                     text = "Aviso de IA en la nube",
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = palette.t1
                 )
             },
             text = {
                 Text(
                     text = "Para responderte, los mensajes que escribas y los datos de la app necesarios para tu pregunta se enviarán a la nube de Google. Activa esto solo si estás de acuerdo.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 14.sp,
+                    color = palette.t2,
                     lineHeight = 20.sp
                 )
             },
@@ -165,6 +148,10 @@ fun AjustesIaAhorrosScreen(
                             snackbarHostState.showSnackbar("IA en la nube activada. Se mostrará el botón ✨ en tus pantallas principales.")
                         }
                     },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = palette.brand,
+                        contentColor = palette.onBrand
+                    ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Aceptar")
@@ -174,48 +161,34 @@ fun AjustesIaAhorrosScreen(
                 TextButton(
                     onClick = {
                         showConsentDialog = false
-                        // User cancelled: switch stays off (Rule 2)
                         saveCloudConfig(enabled = false, consentAccepted = false)
                     }
                 ) {
-                    Text("Cancelar")
+                    Text("Cancelar", color = palette.t2)
                 }
             }
         )
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier
+            .fillMaxSize()
+            .background(palette.bg),
+        containerColor = palette.bg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = 92.dp)
+            )
+        },
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Regresar",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "IA de ahorros",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Asistente en la nube e IA local",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            AjustesSubScreenTopBar(
+                title = "IA de ahorros",
+                subtitle = "Asistente en la nube (Gemini)",
+                palette = palette,
+                onBack = onBack
+            )
         }
     ) { innerPadding ->
         LazyColumn(
@@ -230,145 +203,124 @@ fun AjustesIaAhorrosScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ==============================================================
-            // BLOQUE 1: IA EN LA NUBE (GEMINI) - PRIMERO (Regla 1)
-            // ==============================================================
             item {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Cloud,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        tint = palette.ahorro,
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "IA en la nube (Gemini)",
-                        style = MaterialTheme.typography.titleSmall,
+                        text = "IA EN LA NUBE (GEMINI)",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = palette.ahorro,
+                        letterSpacing = 1.1.sp
                     )
                 }
             }
 
-            // Card A1: Switch "Usar IA en la nube"
+            // Switch "Usar IA en la nube"
             item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
-                    Column(
+                AjustesPaletteCard(palette = palette) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp)
+                            .padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.size(42.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Column {
-                                    Text(
-                                        text = "Usar IA en la nube",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (settings.isCloudAiEnabled && settings.cloudAiConsentAccepted) "Asistente Gemini activo" else "Apagado por defecto",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Switch(
-                                checked = settings.isCloudAiEnabled && settings.cloudAiConsentAccepted,
-                                onCheckedChange = { isChecked ->
-                                    if (isChecked) {
-                                        showConsentDialog = true
-                                    } else {
-                                        // When turning off, acceptance is forgotten (Rule 2)
-                                        saveCloudConfig(enabled = false, consentAccepted = false)
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("IA en la nube desactivada.")
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.testTag("switch_cloud_ai")
+                            AjustesIconBadge(
+                                icon = Icons.Default.AutoAwesome,
+                                containerColor = palette.s2,
+                                iconTint = palette.ahorro,
+                                size = 44.dp,
+                                iconSize = 22.dp
                             )
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = "Usar IA en la nube",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = palette.t1
+                                )
+                                Text(
+                                    text = if (settings.isCloudAiEnabled && settings.cloudAiConsentAccepted) {
+                                        "Asistente Gemini activo"
+                                    } else {
+                                        "Apagado por defecto"
+                                    },
+                                    fontSize = 13.sp,
+                                    color = palette.t2
+                                )
+                            }
                         }
+
+                        Switch(
+                            checked = settings.isCloudAiEnabled && settings.cloudAiConsentAccepted,
+                            colors = ajustesSwitchColors(palette),
+                            onCheckedChange = { isChecked ->
+                                if (isChecked) {
+                                    showConsentDialog = true
+                                } else {
+                                    saveCloudConfig(enabled = false, consentAccepted = false)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("IA en la nube desactivada.")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.testTag("switch_cloud_ai")
+                        )
                     }
                 }
             }
 
-            // Card A2: Cloud API Key, Model, Test & Link
+            // Credenciales, modelo y prueba de conexión
             item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
+                AjustesPaletteCard(palette = palette) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp)
+                            .padding(18.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier.size(42.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Key,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
+                            AjustesIconBadge(
+                                icon = Icons.Default.Key,
+                                containerColor = palette.s2,
+                                iconTint = palette.accent,
+                                size = 44.dp,
+                                iconSize = 22.dp
+                            )
                             Spacer(modifier = Modifier.width(14.dp))
                             Column {
                                 Text(
                                     text = "Credenciales y modelo de Gemini",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = palette.t1
                                 )
                                 Text(
                                     text = "Almacenamiento seguro cifrado en el dispositivo",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontSize = 13.sp,
+                                    color = palette.t2
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(18.dp))
 
-                        // Campo "Clave de API" (oculta con botón Mostrar)
                         OutlinedTextField(
                             value = apiKeyInput,
                             onValueChange = {
@@ -380,6 +332,7 @@ fun AjustesIaAhorrosScreen(
                             singleLine = true,
                             visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            colors = ajustesTextFieldColors(palette),
                             trailingIcon = {
                                 IconButton(onClick = { showApiKey = !showApiKey }) {
                                     Icon(
@@ -388,43 +341,43 @@ fun AjustesIaAhorrosScreen(
                                     )
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().testTag("gemini_api_key_field"),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("gemini_api_key_field"),
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // Enlace clickable "Consigue una clave gratis en aistudio.google.com"
                         Row(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable {
                                     try {
                                         val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
                                         context.startActivity(browserIntent)
-                                    } catch (_: Exception) {}
+                                    } catch (_: Exception) { }
                                 }
-                                .padding(vertical = 4.dp, horizontal = 4.dp),
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Default.OpenInNew,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = palette.accent,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Consigue una clave gratis en aistudio.google.com",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp,
+                                color = palette.accent,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Campo "Modelo" (editable, por defecto Flash-Lite)
                         OutlinedTextField(
                             value = cloudModelInput,
                             onValueChange = {
@@ -432,42 +385,58 @@ fun AjustesIaAhorrosScreen(
                                 saveCloudConfig()
                             },
                             label = { Text("Modelo") },
-                            placeholder = { Text("gemini-3.5-flash-lite") },
+                            placeholder = { Text(GeminiService.DEFAULT_MODEL) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth().testTag("gemini_model_field"),
+                            colors = ajustesTextFieldColors(palette),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("gemini_model_field"),
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // Model suggestion chips
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            val chipColors = ajustesChipColors(palette)
                             FilterChip(
-                                selected = cloudModelInput == "gemini-3.5-flash-lite",
+                                selected = cloudModelInput == GeminiService.DEFAULT_MODEL,
                                 onClick = {
-                                    cloudModelInput = "gemini-3.5-flash-lite"
+                                    cloudModelInput = GeminiService.DEFAULT_MODEL
                                     saveCloudConfig()
                                 },
                                 label = { Text("3.5 Flash-Lite", fontSize = 12.sp) },
+                                colors = chipColors,
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = cloudModelInput == GeminiService.DEFAULT_MODEL,
+                                    borderColor = palette.s3,
+                                    selectedBorderColor = palette.accent
+                                ),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             FilterChip(
-                                selected = cloudModelInput == "gemini-3.5-flash",
+                                selected = cloudModelInput == GeminiService.FLASH_MODEL,
                                 onClick = {
-                                cloudModelInput = "gemini-3.5-flash"
-                                saveCloudConfig()
-                            },
-                            label = { Text("3.5 Flash", fontSize = 12.sp) },
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
+                                    cloudModelInput = GeminiService.FLASH_MODEL
+                                    saveCloudConfig()
+                                },
+                                label = { Text("3.5 Flash", fontSize = 12.sp) },
+                                colors = chipColors,
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = cloudModelInput == GeminiService.FLASH_MODEL,
+                                    borderColor = palette.s3,
+                                    selectedBorderColor = palette.accent
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Botón "Probar conexión"
                         Button(
                             onClick = {
                                 isTestingCloudConnection = true
@@ -486,13 +455,20 @@ fun AjustesIaAhorrosScreen(
                                 }
                             },
                             enabled = !isTestingCloudConnection,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = palette.brand,
+                                contentColor = palette.onBrand
+                            ),
                             shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("test_gemini_button")
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("test_gemini_button")
                         ) {
                             if (isTestingCloudConnection) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    color = palette.onBrand,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
@@ -504,12 +480,12 @@ fun AjustesIaAhorrosScreen(
                             }
                         }
 
-                        // Status feedback
                         if (cloudSuccessMessage != null) {
                             Spacer(modifier = Modifier.height(14.dp))
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
+                                color = palette.ingreso.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, palette.ingreso.copy(alpha = 0.35f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -519,14 +495,14 @@ fun AjustesIaAhorrosScreen(
                                     Icon(
                                         Icons.Default.CloudDone,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        tint = palette.ingreso,
                                         modifier = Modifier.size(22.dp)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = cloudSuccessMessage!!,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontSize = 13.sp,
+                                        color = palette.t1,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -537,7 +513,8 @@ fun AjustesIaAhorrosScreen(
                             Spacer(modifier = Modifier.height(14.dp))
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.errorContainer,
+                                color = palette.gasto.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, palette.gasto.copy(alpha = 0.35f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -547,14 +524,14 @@ fun AjustesIaAhorrosScreen(
                                     Icon(
                                         Icons.Default.Error,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        tint = palette.gasto,
                                         modifier = Modifier.size(22.dp)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = cloudErrorMessage!!,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontSize = 13.sp,
+                                        color = palette.t1,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -564,325 +541,27 @@ fun AjustesIaAhorrosScreen(
                 }
             }
 
-            // ==============================================================
-            // BLOQUE 2: IA LOCAL (OLLAMA) - ABAJO (Regla 1b)
-            // ==============================================================
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Memory,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "IA local (Ollama)",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            // Card B1: Switch "Usar IA local"
-            item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    modifier = Modifier.size(42.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Memory,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Column {
-                                    Text(
-                                        text = "Usar IA local",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (settings.isLocalAiEnabled) "Función activada" else "Apagada por defecto",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Switch(
-                                checked = settings.isLocalAiEnabled,
-                                onCheckedChange = { isChecked ->
-                                    saveLocalConfig(enabled = isChecked)
-                                    scope.launch {
-                                        if (isChecked) {
-                                            snackbarHostState.showSnackbar("IA local activada. Verás el botón ✨ Sugerir en nuevos movimientos.")
-                                        } else {
-                                            snackbarHostState.showSnackbar("IA local desactivada.")
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Card B2: Local Server configuration & Model
-            item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                modifier = Modifier.size(42.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Lan,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column {
-                                Text(
-                                    text = "Configuración del servidor local",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Ollama API en tu computadora o red",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Campo "Dirección del servidor"
-                        OutlinedTextField(
-                            value = localServerUrlInput,
-                            onValueChange = {
-                                localServerUrlInput = it
-                                saveLocalConfig()
-                            },
-                            label = { Text("Dirección del servidor") },
-                            placeholder = { Text("http://localhost:11434") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Quick URL suggestion chips
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilterChip(
-                                selected = localServerUrlInput == "http://localhost:11434",
-                                onClick = {
-                                    localServerUrlInput = "http://localhost:11434"
-                                    saveLocalConfig()
-                                },
-                                label = { Text("localhost:11434", fontSize = 12.sp) },
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            FilterChip(
-                                selected = localServerUrlInput == "http://10.0.2.2:11434",
-                                onClick = {
-                                    localServerUrlInput = "http://10.0.2.2:11434"
-                                    saveLocalConfig()
-                                },
-                                label = { Text("10.0.2.2 (Emulador)", fontSize = 12.sp) },
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Campo "Modelo"
-                        OutlinedTextField(
-                            value = localModelInput,
-                            onValueChange = {
-                                localModelInput = it
-                                saveLocalConfig()
-                            },
-                            label = { Text("Modelo") },
-                            placeholder = { Text("llama3.2:1b") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Botón "Probar conexión"
-                        Button(
-                            onClick = {
-                                isTestingLocalConnection = true
-                                localSuccessMessage = null
-                                localErrorMessage = null
-                                saveLocalConfig()
-                                viewModel.testOllamaConnection(localServerUrlInput) { result ->
-                                    isTestingLocalConnection = false
-                                    result.onSuccess { models ->
-                                        localSuccessMessage = if (models.isEmpty()) {
-                                            "Conectado con éxito a Ollama (sin modelos descargados aún)"
-                                        } else {
-                                            "Conectado. Modelos encontrados: ${models.joinToString(", ")}"
-                                        }
-                                        localErrorMessage = null
-                                    }.onFailure { error ->
-                                        localErrorMessage = error.message ?: "Error al intentar conectar con Ollama."
-                                        localSuccessMessage = null
-                                    }
-                                }
-                            },
-                            enabled = !isTestingLocalConnection,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            if (isTestingLocalConnection) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("Probando conexión...")
-                            } else {
-                                Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Probar conexión", fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-
-                        // Status feedback
-                        if (localSuccessMessage != null) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.CloudDone,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = localSuccessMessage!!,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-
-                        if (localErrorMessage != null) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Error,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = localErrorMessage!!,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Discrete note for local IA (Allowed to retain "sin enviar datos a la nube" per Rule 3)
-            item {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-                    modifier = Modifier.fillMaxWidth()
+                AjustesPaletteCard(
+                    palette = palette,
+                    containerColor = palette.s2,
+                    borderColor = palette.s3
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            tint = palette.t2,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Requiere tener Ollama instalado y encendido. Funciona en tu red local sin enviar datos a la nube. La app funciona completa sin esto.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            text = "Tu clave de API se guarda cifrada localmente en este dispositivo y solo se usa para consultar a Gemini cuando la IA está activada.",
+                            fontSize = 12.sp,
+                            color = palette.t2,
                             lineHeight = 18.sp
                         )
                     }

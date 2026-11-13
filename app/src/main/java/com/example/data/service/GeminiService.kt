@@ -11,6 +11,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.ConnectException
 import java.net.UnknownHostException
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -43,7 +44,8 @@ sealed class GeminiTurnResult {
         val isDestructive: Boolean,
         val arguments: Map<String, Any?>,
         val allCalls: List<GeminiFunctionCallItem>,
-        val rawModelParts: List<JSONObject>
+        val rawModelParts: List<JSONObject>,
+        val assistantText: String = ""
     ) : GeminiTurnResult()
 
     data class Error(
@@ -205,7 +207,7 @@ Nunca muestres una tarjeta con un monto, nombre u otro dato imprescindible que e
 Si el usuario dice 'agrega dinero a mi meta' o 'agrega un gasto' o similar sin decir cuánto, pregunta únicamente en una sola frase breve: '¿Cuánto dinero quieres agregar a la meta?' o '¿De cuánto es el gasto?', sin proponer montos por tu cuenta ni mostrar tarjetas hasta tener el dato confirmado.
 
 IDENTIFICADORES:
-Jamás muestres identificadores técnicos ni '#número' en ningún lugar (ni en las tarjetas ni en los mensajes del asistente). Describe siempre a qué se refiere con su tipo, descripción o concepto, monto, categoría y fecha (ej. 'Ingreso de $100 del 9 de nov', 'Gasto de $50 en Alimentos del 10 de nov').
+Jamás muestres identificadores técnicos ni '#número' en ningún lugar (ni en las tarjetas ni en los mensajes del asistente). Describe siempre a qué se refiere con su tipo, concepto/nota, monto y fecha (ej. 'Ingreso de $100 del 9 de nov', 'Gasto de $50 del 10 de nov').
 
 COMPRENSIÓN DEL LENGUAJE:
 - Sinónimos de acciones:
@@ -213,7 +215,7 @@ COMPRENSIÓN DEL LENGUAJE:
   * "agregar", "añadir", "registrar", "apuntar", "poner" = crear.
   * "cambiar", "corregir", "modificar", "actualizar" = editar.
 - Para editar o eliminar algo sin que el usuario dé todos los datos (ej. "quita el gasto de café", "borra el ingreso de 1500"):
-  * Primero usa las herramientas de lectura ('consultar_movimientos', 'listar_metas', 'listar_compras', 'listar_categorias') para localizar el elemento coincidente por monto, descripción, categoría o fecha.
+  * Primero usa las herramientas de lectura ('consultar_movimientos', 'listar_metas', 'listar_compras') para localizar el elemento coincidente por monto, descripción o fecha.
   * Si hay una sola coincidencia clara, ve DIRECTO a la tarjeta de confirmación llamando la herramienta correspondiente ('eliminar_movimiento', 'editar_movimiento', etc.).
   * Si hay varias coincidencias, muestra la lista numerada al usuario y pregúntale cuál (describiendo tipo, concepto, monto y fecha, NUNCA mostrando IDs técnicos al usuario).
   * Cuando el usuario responda "el primero", "el de 100", "el segundo", "ese", resuélvelo con la lista que se acaba de consultar.
@@ -227,11 +229,27 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
    - Para editar o eliminar usa 'editar_meta' o 'eliminar_meta'. Al eliminar una meta con fondos, ese dinero regresa al saldo disponible y la tarjeta de confirmación lo indicará.
 2. MOVIMIENTOS:
    - Para gastos o ingresos usa 'agregar_movimiento', 'editar_movimiento' o 'eliminar_movimiento'.
-   - Siempre asigna la categoría correspondiente. Si no tiene categoría clara, déjala null (se mostrará como Sin categoría). NUNCA asignes 'General' si el movimiento corresponde a otra categoría clara.
-3. LISTAS DE COMPRAS:
+   - Las categorías y presupuestos están completamente eliminados de la app. NO inventes, sugieras ni preguntes categorías.
+   - El mensaje final del asistente tras registrar un movimiento NUNCA debe mencionar categorías (ejemplo: 'Gasto de $20 (Tacos) registrado correctamente.').
+3. LISTAS DE COMPRAS (REGLAS ESTRICTAS DE MULTI-ÍTEM Y PRECIOS):
    - Usa 'listar_compras', 'crear_lista_compras', 'agregar_producto_compra', 'editar_producto_compra', 'eliminar_producto_compra'.
+   - PROCESAMIENTO MULTI-ÍTEM OBLIGATORIO (CERO OMISIONES):
+     * Cuando el usuario pida agregar, editar o eliminar N productos en un mismo mensaje (ej. "agrega leche a 25, huevos a 45 y pan a 30" o una lista larga), tienes ESTRICTAMENTE PROHIBIDO procesar solo los primeros 1 o 2 y omitir el resto.
+     * Debes descomponer el 100% de la petición en el orden exacto en que aparecieron los productos y generar TODAS las llamadas a 'agregar_producto_compra' (o la herramienta correspondiente) para TODOS los N elementos en ese mismo turno, sin saltarte ninguno.
+     * Si la lista es larga (3 o más productos), incluye además en tu respuesta de texto el listado numerado exacto de todos los elementos que estás gestionando para garantizar el 100% de cobertura.
+   - INTERROGATORIO OBLIGATORIO DE PRECIOS ANTES DE CONFIRMAR:
+     * Si el usuario solicita agregar uno o más productos SIN mencionar explícitamente su precio (ej. "agrega leche", o "agrega leche, huevos a 45 y pan"), tienes ESTRICTAMENTE PROHIBIDO llamar a 'agregar_producto_compra' o mostrar la tarjeta de confirmación de inmediato.
+     * En su lugar, responde ÚNICAMENTE en texto preguntando el precio faltante antes de invocar la herramienta:
+       - Si falta el precio de 1 producto: "¿Cuánto cuesta [nombre del producto]?" (o "¿Qué precio tiene este artículo para agregarlo con su presupuesto?").
+       - Si faltan precios de varios productos: pregúntalos claramente en lista numerada en el orden exacto de aparición (conservando en memoria los que ya tenían precio).
+     * NUNCA inventes precios, ni uses 0, ni pongas null, ni uses símbolos aproximados como '~'.
+     * Cuando el usuario responda en el siguiente turno con el precio (ej. "25", "25 pesos", o "25 y 30"), vincula cada número en orden exacto al producto pendiente correspondiente y DEBES llamar de inmediato a 'agregar_producto_compra' para TODOS los productos con su 'precioEstimado' exacto (NUNCA respondas solo texto diciendo que quedó guardado).
+     * Si el usuario proporciona el precio desde el inicio (ej. "agrega leche a 25 pesos"), salta la pregunta y llama a 'agregar_producto_compra' de inmediato.
+   - EDICIÓN Y ELIMINACIÓN DE PRODUCTOS:
+     * Al usar 'editar_producto_compra' o 'eliminar_producto_compra', si aún no tienes el ID y nombre exacto del artículo, llama primero a 'listar_compras'.
+     * Es OBLIGATORIO enviar 'nombreProducto' con el nombre real del artículo (ej. "Leche", "Pan", "Huevos"); JAMÁS envíes el texto genérico "Producto".
 4. CONFIRMACIÓN:
-   - Toda acción que cree, modifique o borre datos mostrará una tarjeta en el chat para confirmación del usuario con datos reales (tipo, monto, categoría real, fecha en formato corto).
+   - Toda acción que cree, modifique o borre datos mostrará una tarjeta en el chat para confirmación del usuario con datos reales y precios formateados con exactitud (ej. "$25.00", nunca "~$25.00").
 5. BORRADOS MASIVOS:
    - Para 'borrar_todos_los_movimientos', solicita confirmación explícita con el total exacto."""
                     )
@@ -365,7 +383,7 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
         }
     }
 
-    private fun parseResponse(jsonString: String, currencySymbol: String): GeminiTurnResult {
+    internal fun parseResponse(jsonString: String, currencySymbol: String): GeminiTurnResult {
         return try {
             val root = JSONObject(jsonString)
             val candidates = root.optJSONArray("candidates")
@@ -411,8 +429,8 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
             }
 
             if (functionCallItems.isNotEmpty()) {
-                val firstAction = functionCallItems.firstOrNull { !it.isQuery }
-                if (firstAction == null) {
+                val actionCalls = functionCallItems.filter { !it.isQuery }
+                if (actionCalls.isEmpty()) {
                     val firstQuery = functionCallItems.first()
                     return GeminiTurnResult.QueryFunctionCall(
                         callId = "call_${System.currentTimeMillis()}",
@@ -422,8 +440,11 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                         rawModelParts = rawPartsList
                     )
                 } else {
-                    val summary = buildActionSummary(firstAction.name, firstAction.arguments, currencySymbol)
-                    val isDestructive = firstAction.name.startsWith("eliminar_") || firstAction.name.startsWith("borrar_")
+                    val firstAction = actionCalls.first()
+                    val summary = buildBatchActionSummary(actionCalls, currencySymbol)
+                    val isDestructive = actionCalls.any {
+                        it.name.startsWith("eliminar_") || it.name.startsWith("borrar_")
+                    }
                     return GeminiTurnResult.ActionProposalCall(
                         proposalId = "prop_${System.currentTimeMillis()}",
                         toolName = firstAction.name,
@@ -431,7 +452,8 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                         isDestructive = isDestructive,
                         arguments = firstAction.arguments,
                         allCalls = functionCallItems,
-                        rawModelParts = rawPartsList
+                        rawModelParts = rawPartsList,
+                        assistantText = textResponse.trim()
                     )
                 }
             }
@@ -446,7 +468,6 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
         return name in setOf(
             "consultar_movimientos",
             "consultar_resumen",
-            "listar_categorias",
             "listar_metas",
             "listar_compras"
         )
@@ -470,6 +491,89 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
         }
     }
 
+    fun formatExactCurrency(amount: Double, currencySymbol: String): String {
+        val formatter = NumberFormat.getNumberInstance(Locale("es", "MX")).apply {
+            minimumFractionDigits = 2
+            maximumFractionDigits = 2
+        }
+        return "$currencySymbol${formatter.format(amount)}"
+    }
+
+    fun formatQuantity(raw: Any?): String {
+        val q = raw?.toString()?.toDoubleOrNull() ?: 1.0
+        return if (q % 1.0 == 0.0) {
+            q.toLong().toString()
+        } else {
+            String.format(Locale.US, "%.2f", q).trimEnd('0').trimEnd('.')
+        }
+    }
+
+    private fun resolveShoppingProductName(args: Map<String, Any?>): String {
+        val candidates = listOf(
+            args["nombreProducto"]?.toString(),
+            args["productName"]?.toString(),
+            args["nuevoNombre"]?.toString(),
+            args["nombre"]?.toString()
+        )
+        return candidates
+            .mapNotNull { it?.trim() }
+            .firstOrNull { it.isNotBlank() && !it.equals("Producto", ignoreCase = true) }
+            ?: "Producto"
+    }
+
+    fun buildBatchActionSummary(calls: List<GeminiFunctionCallItem>, currencySymbol: String): String {
+        val actionCalls = calls.filter { !it.isQuery }
+        if (actionCalls.isEmpty()) return ""
+        if (actionCalls.size == 1) {
+            val single = actionCalls.first()
+            return buildActionSummary(single.name, single.arguments, currencySymbol)
+        }
+
+        if (actionCalls.all { it.name == "agregar_producto_compra" }) {
+            val lines = actionCalls.mapIndexed { idx, call ->
+                val prod = resolveShoppingProductName(call.arguments)
+                val cant = formatQuantity(call.arguments["cantidad"])
+                val precio = call.arguments["precioEstimado"]?.toString()?.toDoubleOrNull()
+                val precioStr = if (precio != null && precio > 0) " — ${formatExactCurrency(precio, currencySymbol)}" else ""
+                "${idx + 1}. $cant x $prod$precioStr"
+            }
+            return "¿Agrego estos ${actionCalls.size} productos a tu lista de compras?\n" + lines.joinToString("\n")
+        }
+
+        val lines = actionCalls.mapIndexed { idx, call ->
+            "${idx + 1}. ${buildCompactBatchLine(call.name, call.arguments, currencySymbol)}"
+        }
+        return "¿Confirmas estas ${actionCalls.size} acciones?\n" + lines.joinToString("\n")
+    }
+
+    private fun buildCompactBatchLine(name: String, args: Map<String, Any?>, currencySymbol: String): String {
+        return when (name) {
+            "crear_lista_compras" -> {
+                val nombre = args["nombre"]?.toString()?.trim()?.ifBlank { "Compras" } ?: "Compras"
+                "Crear lista '$nombre'"
+            }
+            "agregar_producto_compra" -> {
+                val prod = resolveShoppingProductName(args)
+                val cant = formatQuantity(args["cantidad"])
+                val precio = args["precioEstimado"]?.toString()?.toDoubleOrNull()
+                val precioStr = if (precio != null && precio > 0) " — ${formatExactCurrency(precio, currencySymbol)}" else ""
+                "Agregar $cant x $prod$precioStr"
+            }
+            "editar_producto_compra" -> {
+                val prod = resolveShoppingProductName(args)
+                val cant = (args["cantidad"] ?: args["nuevaCantidad"])?.let { formatQuantity(it) }
+                val precio = (args["precioEstimado"] ?: args["nuevoPrecio"])?.toString()?.toDoubleOrNull()?.let { formatExactCurrency(it, currencySymbol) }
+                val detalles = listOfNotNull(cant?.let { "Cant: $it" }, precio).joinToString(", ")
+                if (detalles.isNotBlank()) "Editar '$prod' ($detalles)" else "Editar '$prod'"
+            }
+            "eliminar_producto_compra" -> {
+                val prod = resolveShoppingProductName(args)
+                "Eliminar '$prod'"
+            }
+            else -> buildActionSummary(name, args, currencySymbol)
+        }
+    }
+
     private fun buildActionSummary(name: String, args: Map<String, Any?>, currencySymbol: String): String {
         return when (name) {
             "agregar_movimiento" -> {
@@ -480,25 +584,21 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                 }
                 val monto = args["monto"]?.toString()?.toDoubleOrNull() ?: 0.0
                 val formattedAmount = "$currencySymbol${String.format(Locale.US, "%.2f", monto)}"
-                val rawCat = args["categoria"]?.toString()
-                val categoria = if (rawCat.isNullOrBlank() || rawCat.contains("actual", ignoreCase = true)) "Sin categoría" else rawCat
                 val nota = args["nota"]?.toString()?.takeIf { it.isNotBlank() && !it.equals("Sin nota", ignoreCase = true) }
                 val fecha = formatShortDate(args["fecha"]?.toString())
                 val hora = args["hora"]?.toString()?.takeIf { it.isNotBlank() }?.let { " a las $it" } ?: ""
                 val notaPart = if (nota != null) " en '$nota'" else ""
-                "¿Confirmas registrar este $tipo de $formattedAmount$notaPart (Categoría: $categoria, Fecha: $fecha$hora)?"
+                "¿Confirmas registrar este $tipo de $formattedAmount$notaPart (Fecha: $fecha$hora)?"
             }
             "editar_movimiento" -> {
                 val desc = args["descripcion"]?.toString()?.takeIf { it.isNotBlank() }
                     ?: args["nota"]?.toString()?.takeIf { it.isNotBlank() && !it.equals("Sin nota", ignoreCase = true) }
                     ?: "este movimiento"
                 val monto = args["monto"]?.toString()?.toDoubleOrNull()?.let { "$currencySymbol${String.format(Locale.US, "%.2f", it)}" }
-                val cat = args["categoria"]?.toString()?.takeIf { it.isNotBlank() && !it.contains("actual", ignoreCase = true) }
                 val nota = args["nota"]?.toString()?.takeIf { it.isNotBlank() && !it.equals("Sin nota", ignoreCase = true) }
                 val fecha = args["fecha"]?.toString()?.let { formatShortDate(it) }
                 val detalles = listOfNotNull(
                     monto?.let { "Monto: $it" },
-                    cat?.let { "Categoría: $it" },
                     nota?.let { "Nota: '$it'" },
                     fecha?.let { "Fecha: $it" }
                 ).joinToString(", ")
@@ -550,39 +650,33 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                 val metaNombre = args["metaNombre"]?.toString()?.takeIf { it.isNotBlank() } ?: "tu meta"
                 "¿Retiro $formattedAmount de '$metaNombre' de regreso a tu saldo disponible?"
             }
-            "crear_categoria" -> {
-                val nombre = args["nombre"]?.toString() ?: ""
-                val tipo = if (args["tipo"]?.toString()?.uppercase() == "INCOME") "ingresos" else "gastos"
-                val icono = args["icono"]?.toString() ?: "🏷️"
-                "¿Creo la categoría $icono '$nombre' para $tipo?"
-            }
-            "editar_categoria" -> {
-                val nuevoNombre = args["nuevoNombre"]?.toString() ?: ""
-                "¿Renombro la categoría a '$nuevoNombre'?"
-            }
-            "eliminar_categoria" -> {
-                val nombre = args["nombre"]?.toString() ?: ""
-                "¿Elimino la categoría '$nombre'? (Sus movimientos no se borrarán; pasarán a General)"
-            }
             "crear_lista_compras" -> {
                 val nombre = args["nombre"]?.toString() ?: "Compras"
                 "¿Creo la lista de compras '$nombre'?"
             }
             "agregar_producto_compra" -> {
-                val prod = args["nombreProducto"]?.toString() ?: "Producto"
-                val cant = args["cantidad"]?.toString() ?: "1"
+                val prod = resolveShoppingProductName(args)
+                val cant = formatQuantity(args["cantidad"])
                 val precio = args["precioEstimado"]?.toString()?.toDoubleOrNull()
-                val precioStr = if (precio != null && precio > 0) " a ~$currencySymbol${String.format(java.util.Locale.US, "%.2f", precio)}" else ""
+                val precioStr = if (precio != null && precio > 0) " (${formatExactCurrency(precio, currencySymbol)})" else ""
                 "¿Agrego $cant x '$prod'$precioStr a tu lista de compras?"
             }
             "editar_producto_compra" -> {
-                val prod = args["nombreProducto"]?.toString() ?: "Producto"
-                val cant = args["cantidad"]?.toString()
-                val precio = args["precioEstimado"]?.toString()?.toDoubleOrNull()?.let { "$currencySymbol${String.format(java.util.Locale.US, "%.2f", it)}" }
-                "¿Modifico el producto '$prod' (${listOfNotNull(cant?.let { "Cantidad: $it" }, precio?.let { "Precio: $it" }).joinToString(", ")})?"
+                val prod = resolveShoppingProductName(args)
+                val cant = (args["cantidad"] ?: args["nuevaCantidad"])?.let { formatQuantity(it) }
+                val precio = (args["precioEstimado"] ?: args["nuevoPrecio"])?.toString()?.toDoubleOrNull()?.let { formatExactCurrency(it, currencySymbol) }
+                val comprado = args["comprado"]?.toString()?.toBooleanStrictOrNull()?.let {
+                    if (it) "Marcar comprado" else "Marcar pendiente"
+                }
+                val detalles = listOfNotNull(
+                    cant?.let { "Cantidad: $it" },
+                    precio?.let { "Precio: $it" },
+                    comprado
+                ).joinToString(", ")
+                if (detalles.isNotBlank()) "¿Modifico el producto '$prod' ($detalles)?" else "¿Modifico el producto '$prod'?"
             }
             "eliminar_producto_compra" -> {
-                val prod = args["nombreProducto"]?.toString() ?: "Producto"
+                val prod = resolveShoppingProductName(args)
                 "¿Elimino '$prod' de la lista de compras?"
             }
             "cambiar_moneda" -> {
@@ -608,7 +702,7 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
         // 1. consultar_movimientos
         arr.put(JSONObject().apply {
             put("name", "consultar_movimientos")
-            put("description", "Consulta los movimientos registrados con filtros opcionales (mes, año, categoría, tipo).")
+            put("description", "Consulta los movimientos registrados con filtros opcionales (mes, año, tipo).")
             put("parameters", JSONObject().apply {
                 put("type", "OBJECT")
                 put("properties", JSONObject().apply {
@@ -619,10 +713,6 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                     put("anio", JSONObject().apply {
                         put("type", "INTEGER")
                         put("description", "Año (ej. 2026)")
-                    })
-                    put("categoria", JSONObject().apply {
-                        put("type", "STRING")
-                        put("description", "Nombre de la categoría")
                     })
                     put("tipo", JSONObject().apply {
                         put("type", "STRING")
@@ -652,16 +742,6 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                         put("description", "Año")
                     })
                 })
-            })
-        })
-
-        // 3. listar_categorias
-        arr.put(JSONObject().apply {
-            put("name", "listar_categorias")
-            put("description", "Lista las categorías disponibles con sus nombres, emojis y límites.")
-            put("parameters", JSONObject().apply {
-                put("type", "OBJECT")
-                put("properties", JSONObject())
             })
         })
 
@@ -700,10 +780,6 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                         put("type", "NUMBER")
                         put("description", "Monto numérico en la moneda de la app")
                     })
-                    put("categoria", JSONObject().apply {
-                        put("type", "STRING")
-                        put("description", "Nombre exacto o sugerido de la categoría")
-                    })
                     put("nota", JSONObject().apply {
                         put("type", "STRING")
                         put("description", "Descripción o concepto del movimiento")
@@ -727,7 +803,7 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
         // 7. editar_movimiento
         arr.put(JSONObject().apply {
             put("name", "editar_movimiento")
-            put("description", "Edita el monto, categoría, fecha, hora o nota de un movimiento existente por su ID.")
+            put("description", "Edita el monto, fecha, hora o nota de un movimiento existente por su ID.")
             put("parameters", JSONObject().apply {
                 put("type", "OBJECT")
                 put("properties", JSONObject().apply {
@@ -736,7 +812,6 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
                         put("description", "ID numérico del movimiento")
                     })
                     put("monto", JSONObject().apply { put("type", "NUMBER") })
-                    put("categoria", JSONObject().apply { put("type", "STRING") })
                     put("nota", JSONObject().apply { put("type", "STRING") })
                     put("fecha", JSONObject().apply { put("type", "STRING") })
                     put("hora", JSONObject().apply { put("type", "STRING") })
@@ -908,53 +983,7 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
             })
         })
 
-        // 14. crear_categoria
-        arr.put(JSONObject().apply {
-            put("name", "crear_categoria")
-            put("description", "Crea una nueva categoría de gastos o ingresos.")
-            put("parameters", JSONObject().apply {
-                put("type", "OBJECT")
-                put("properties", JSONObject().apply {
-                    put("nombre", JSONObject().apply { put("type", "STRING") })
-                    put("tipo", JSONObject().apply { put("type", "STRING") })
-                    put("icono", JSONObject().apply { put("type", "STRING") })
-                })
-                put("required", JSONArray().apply { put("nombre") })
-            })
-        })
-
-        // 15. editar_categoria
-        arr.put(JSONObject().apply {
-            put("name", "editar_categoria")
-            put("description", "Modifica el nombre de una categoría existente.")
-            put("parameters", JSONObject().apply {
-                put("type", "OBJECT")
-                put("properties", JSONObject().apply {
-                    put("id", JSONObject().apply { put("type", "STRING") })
-                    put("nuevoNombre", JSONObject().apply { put("type", "STRING") })
-                })
-                put("required", JSONArray().apply { put("id") })
-            })
-        })
-
-        // 16. eliminar_categoria
-        arr.put(JSONObject().apply {
-            put("name", "eliminar_categoria")
-            put("description", "Elimina una categoría existente.")
-            put("parameters", JSONObject().apply {
-                put("type", "OBJECT")
-                put("properties", JSONObject().apply {
-                    put("id", JSONObject().apply { put("type", "STRING") })
-                    put("nombre", JSONObject().apply { put("type", "STRING") })
-                })
-                put("required", JSONArray().apply {
-                    put("id")
-                    put("nombre")
-                })
-            })
-        })
-
-        // 17. crear_lista_compras
+        // crear_lista_compras
         arr.put(JSONObject().apply {
             put("name", "crear_lista_compras")
             put("description", "Crea una nueva lista de compras.")
@@ -970,33 +999,70 @@ REGLAS DE HERRAMIENTAS Y CONFIRMACIÓN:
         // 18. agregar_producto_compra
         arr.put(JSONObject().apply {
             put("name", "agregar_producto_compra")
-            put("description", "Agrega un producto a la lista de compras.")
+            put("description", "Agrega UN producto a la lista de compras con su precio unitario exacto (> 0). Si el usuario pide N productos, emite N llamadas en orden exacto. NUNCA llames esta herramienta sin un precioEstimado > 0 proporcionado por el usuario.")
             put("parameters", JSONObject().apply {
                 put("type", "OBJECT")
                 put("properties", JSONObject().apply {
-                    put("listaId", JSONObject().apply { put("type", "INTEGER") })
-                    put("nombreProducto", JSONObject().apply { put("type", "STRING") })
-                    put("cantidad", JSONObject().apply { put("type", "NUMBER") })
-                    put("precioEstimado", JSONObject().apply { put("type", "NUMBER") })
+                    put("listaId", JSONObject().apply {
+                        put("type", "INTEGER")
+                        put("description", "ID numérico de la lista de compras (opcional)")
+                    })
+                    put("nombreProducto", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Nombre del producto")
+                    })
+                    put("cantidad", JSONObject().apply {
+                        put("type", "NUMBER")
+                        put("description", "Cantidad numérica (por defecto 1)")
+                    })
+                    put("precioEstimado", JSONObject().apply {
+                        put("type", "NUMBER")
+                        put("description", "Precio unitario exacto (> 0) indicado explícitamente por el usuario. Obligatorio; nunca uses 0, null ni suposiciones.")
+                    })
                 })
-                put("required", JSONArray().apply { put("nombreProducto") })
+                put("required", JSONArray().apply {
+                    put("nombreProducto")
+                    put("precioEstimado")
+                })
             })
         })
 
         // 19. editar_producto_compra
         arr.put(JSONObject().apply {
             put("name", "editar_producto_compra")
-            put("description", "Edita el nombre, cantidad, precio o estado comprado de un producto de compras.")
+            put("description", "Edita la cantidad, precio, nombre o estado comprado de un producto de compras existente. OBLIGATORIO enviar 'nombreProducto' con el nombre real del artículo obtenido de listar_compras (NUNCA uses la palabra genérica 'Producto').")
             put("parameters", JSONObject().apply {
                 put("type", "OBJECT")
                 put("properties", JSONObject().apply {
-                    put("id", JSONObject().apply { put("type", "INTEGER") })
-                    put("nombreProducto", JSONObject().apply { put("type", "STRING") })
-                    put("cantidad", JSONObject().apply { put("type", "NUMBER") })
-                    put("precioEstimado", JSONObject().apply { put("type", "NUMBER") })
-                    put("comprado", JSONObject().apply { put("type", "BOOLEAN") })
+                    put("id", JSONObject().apply {
+                        put("type", "INTEGER")
+                        put("description", "ID numérico del producto obtenido de listar_compras")
+                    })
+                    put("nombreProducto", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Nombre real del producto (ej. Leche, Pan, Huevos). Nunca envíes 'Producto'.")
+                    })
+                    put("nuevoNombre", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Nuevo nombre solo si el usuario pidió renombrar el producto (opcional)")
+                    })
+                    put("cantidad", JSONObject().apply {
+                        put("type", "NUMBER")
+                        put("description", "Nueva cantidad numérica")
+                    })
+                    put("precioEstimado", JSONObject().apply {
+                        put("type", "NUMBER")
+                        put("description", "Nuevo precio unitario")
+                    })
+                    put("comprado", JSONObject().apply {
+                        put("type", "BOOLEAN")
+                        put("description", "true si ya fue comprado, false si sigue pendiente")
+                    })
                 })
-                put("required", JSONArray().apply { put("id") })
+                put("required", JSONArray().apply {
+                    put("id")
+                    put("nombreProducto")
+                })
             })
         })
 

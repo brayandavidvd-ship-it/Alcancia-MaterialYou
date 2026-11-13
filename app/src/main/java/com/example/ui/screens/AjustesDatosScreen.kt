@@ -1,16 +1,18 @@
 package com.example.ui.screens
 
-import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,28 +21,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.SettingsBackupRestore
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -62,19 +58,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.repository.BackupSummary
-import com.example.ui.components.AlcanciaCard
-import com.example.ui.components.CategoryProgressItem
-import com.example.ui.components.CurrencyUtils
-import com.example.ui.theme.LocalExpenseColor
-import com.example.ui.theme.LocalIncomeColor
 import com.example.ui.theme.LocalIsCompactDensity
-import com.example.ui.theme.LocalNumberFontFamily
-import com.example.ui.theme.LocalSavingsColor
 import com.example.ui.viewmodel.AlcanciaViewModel
 import kotlinx.coroutines.launch
 
@@ -90,19 +78,14 @@ fun AjustesDatosScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val settings by viewModel.settingsState.collectAsStateWithLifecycle()
-    val summary by viewModel.financialSummaryState.collectAsStateWithLifecycle()
+    val palette = resolveInicioPalette(settings)
     val monthlyHistory by viewModel.monthlyHistoryState.collectAsStateWithLifecycle()
     val lastBackupDate by viewModel.lastBackupDate.collectAsStateWithLifecycle()
 
-    val incomeColor = LocalIncomeColor.current
-    val expenseColor = LocalExpenseColor.current
-    val savingsColor = LocalSavingsColor.current
-    val numberFont = LocalNumberFontFamily.current
     val isCompact = LocalIsCompactDensity.current
 
-    // Backup & Restore states
     var pendingRestoreSummary by remember { mutableStateOf<BackupSummary?>(null) }
-    var restoreMode by remember { mutableStateOf("COMBINE") } // "COMBINE" vs "REPLACE"
+    var restoreMode by remember { mutableStateOf("COMBINE") }
     var validationErrorMessage by remember { mutableStateOf<String?>(null) }
     var cacheSizeBytes by remember { mutableStateOf(viewModel.getAppCacheSizeBytes(context)) }
 
@@ -138,30 +121,24 @@ fun AjustesDatosScreen(
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier
+            .fillMaxSize()
+            .background(palette.bg),
+        containerColor = palette.bg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = 92.dp)
+            )
+        },
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Regresar",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Copias de seguridad y datos",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            AjustesSubScreenTopBar(
+                title = "Copias de seguridad y datos",
+                subtitle = "Moneda, respaldos y caché",
+                palette = palette,
+                onBack = onBack
+            )
         }
     ) { innerPadding ->
         LazyColumn(
@@ -176,101 +153,28 @@ fun AjustesDatosScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // RECUADRO 1: "Exportar a Excel"
+            // Respaldo de la app
             item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
+                AjustesPaletteCard(palette = palette) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp)
+                            .padding(18.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.TableChart,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Text(
-                                text = "Exportar a Excel",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                            AjustesIconBadge(
+                                icon = Icons.Default.SettingsBackupRestore,
+                                containerColor = palette.s2,
+                                iconTint = palette.accent,
+                                size = 44.dp,
+                                iconSize = 22.dp
                             )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = "Exporta tus movimientos en CSV para abrirlos en Excel o Sheets. Solo sirve para consultar, no para restaurar la app.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 20.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Button(
-                            onClick = {
-                                viewModel.exportCsv(context) { shareIntent ->
-                                    context.startActivity(shareIntent)
-                                }
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Exportar movimientos (CSV)", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
-
-            // RECUADRO 2: "Respaldo de la app"
-            item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.SettingsBackupRestore,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
                             Spacer(modifier = Modifier.width(14.dp))
                             Text(
                                 text = "Respaldo de la app",
-                                style = MaterialTheme.typography.titleMedium,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = palette.t1
                             )
                         }
 
@@ -278,9 +182,9 @@ fun AjustesDatosScreen(
 
                         Text(
                             text = "Guarda todo en un archivo dentro de tu celular y restáuralo cuando quieras.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 20.sp
+                            fontSize = 13.sp,
+                            color = palette.t2,
+                            lineHeight = 19.sp
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -294,22 +198,35 @@ fun AjustesDatosScreen(
                                     val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
                                     createDocumentLauncher.launch("alcancia-respaldo-$dateStr.json")
                                 },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = palette.brand,
+                                    contentColor = palette.onBrand
+                                ),
                                 shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
                             ) {
                                 Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Guardar respaldo", fontWeight = FontWeight.SemiBold)
                             }
 
-                            FilledTonalButton(
+                            OutlinedButton(
                                 onClick = {
                                     openDocumentLauncher.launch(arrayOf("application/json", "*/*"))
                                 },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = palette.s2,
+                                    contentColor = palette.t1
+                                ),
+                                border = BorderStroke(1.dp, palette.s3),
                                 shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(imageVector = Icons.Default.Restore, contentDescription = null, tint = palette.accent, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Restaurar respaldo", fontWeight = FontWeight.SemiBold)
                             }
@@ -325,8 +242,8 @@ fun AjustesDatosScreen(
 
                         Text(
                             text = backupDateLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            fontSize = 12.sp,
+                            color = palette.t2,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -334,50 +251,41 @@ fun AjustesDatosScreen(
                 }
             }
 
-            // RECUADRO 3: "Moneda principal"
+            // Moneda principal
             item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
+                AjustesPaletteCard(palette = palette) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp)
+                            .padding(18.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.MonetizationOn,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
+                            AjustesIconBadge(
+                                icon = Icons.Default.MonetizationOn,
+                                containerColor = palette.s2,
+                                iconTint = palette.ahorro,
+                                size = 44.dp,
+                                iconSize = 22.dp
+                            )
                             Spacer(modifier = Modifier.width(14.dp))
                             Column {
                                 Text(
                                     text = "Moneda principal",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = palette.t1
                                 )
                                 Text(
                                     text = "Símbolo actual: ${settings.currencySymbol} (${settings.currencyCode})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontSize = 13.sp,
+                                    color = palette.t2
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
+                        val chipColors = ajustesChipColors(palette)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -399,7 +307,14 @@ fun AjustesDatosScreen(
                                     selected = isSelected,
                                     onClick = { viewModel.setCurrency(code, sym) },
                                     label = { Text(label, maxLines = 1, softWrap = false) },
-                                    shape = RoundedCornerShape(16.dp)
+                                    colors = chipColors,
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = isSelected,
+                                        borderColor = palette.s3,
+                                        selectedBorderColor = palette.accent
+                                    ),
+                                    shape = RoundedCornerShape(14.dp)
                                 )
                             }
                         }
@@ -407,44 +322,34 @@ fun AjustesDatosScreen(
                 }
             }
 
-            // RECUADRO 4: "Limpiar caché de la app"
+            // Limpiar caché de la app
             item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
+                AjustesPaletteCard(palette = palette) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp)
+                            .padding(18.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.CleaningServices,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
+                            AjustesIconBadge(
+                                icon = Icons.Default.CleaningServices,
+                                containerColor = palette.s2,
+                                iconTint = palette.accent,
+                                size = 44.dp,
+                                iconSize = 22.dp
+                            )
                             Spacer(modifier = Modifier.width(14.dp))
                             Column {
                                 Text(
                                     text = "Limpiar caché de la app",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = palette.t1
                                 )
                                 Text(
                                     text = "Almacenamiento temporal usado: ${formatBytes(cacheSizeBytes)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontSize = 13.sp,
+                                    color = palette.t2
                                 )
                             }
                         }
@@ -452,10 +357,10 @@ fun AjustesDatosScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "Libera espacio en tu dispositivo eliminando archivos temporales y reportes exportados antiguos. Tus movimientos, presupuestos y metas de ahorro no se borrarán.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 20.sp
+                            text = "Libera espacio en tu dispositivo eliminando archivos temporales. Tus movimientos y metas de ahorro no se borrarán.",
+                            fontSize = 13.sp,
+                            color = palette.t2,
+                            lineHeight = 19.sp
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -470,10 +375,17 @@ fun AjustesDatosScreen(
                                     }
                                 }
                             },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = palette.s2,
+                                contentColor = palette.t1
+                            ),
+                            border = BorderStroke(1.dp, palette.s3),
                             shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = null, tint = palette.accent, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Limpiar memoria caché", fontWeight = FontWeight.SemiBold)
                         }
@@ -481,70 +393,30 @@ fun AjustesDatosScreen(
                 }
             }
 
-            // SECCIÓN: "Resumen y Estadísticas"
+            // Resumen y Estadísticas
             item {
                 Text(
-                    text = "Resumen y Estadísticas",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "RESUMEN Y ESTADÍSTICAS",
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 8.dp)
+                    color = palette.accent,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(top = 6.dp, start = 4.dp)
                 )
             }
 
-            // Gráfica de distribución por categoría
             item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
+                AjustesPaletteCard(palette = palette) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp)
-                    ) {
-                        Text(
-                            text = "Distribución por categoría (Mes actual)",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        if (summary.categoryBreakdown.isEmpty()) {
-                            Text(
-                                text = "Sin datos en el mes seleccionado.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            for (catSpent in summary.categoryBreakdown) {
-                                CategoryProgressItem(
-                                    item = catSpent,
-                                    currencySymbol = settings.currencySymbol
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Comparativa de los últimos 6 meses
-            item {
-                AlcanciaCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
+                            .padding(18.dp)
                     ) {
                         Text(
                             text = "Comparativa mensual (Últimos 6 meses)",
-                            style = MaterialTheme.typography.titleSmall,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = palette.t1
                         )
                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -577,21 +449,21 @@ fun AjustesDatosScreen(
                                                 .width(10.dp)
                                                 .height(incH)
                                                 .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                                .background(incomeColor)
+                                                .background(palette.ingreso)
                                         )
                                         Box(
                                             modifier = Modifier
                                                 .width(10.dp)
                                                 .height(expH)
                                                 .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                                .background(expenseColor)
+                                                .background(palette.gasto)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = monthData.monthLabel,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        color = palette.t2,
                                         maxLines = 1
                                     )
                                 }
@@ -605,15 +477,15 @@ fun AjustesDatosScreen(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(incomeColor))
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(palette.ingreso))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Ingresos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Ingresos", fontSize = 12.sp, color = palette.t2)
 
                             Spacer(modifier = Modifier.width(18.dp))
 
-                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(expenseColor))
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(palette.gasto))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Gastos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Gastos", fontSize = 12.sp, color = palette.t2)
                         }
                     }
                 }
@@ -621,83 +493,100 @@ fun AjustesDatosScreen(
         }
     }
 
-    // Modal Error de validación de respaldo
     if (validationErrorMessage != null) {
         AlertDialog(
             onDismissRequest = { validationErrorMessage = null },
-            icon = { Icon(Icons.Default.SettingsBackupRestore, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Respaldo no válido") },
-            text = { Text(validationErrorMessage!!) },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
+            icon = { Icon(Icons.Default.SettingsBackupRestore, contentDescription = null, tint = palette.gasto) },
+            title = { Text("Respaldo no válido", fontWeight = FontWeight.Bold, color = palette.t1) },
+            text = { Text(validationErrorMessage!!, color = palette.t2) },
             confirmButton = {
-                Button(onClick = { validationErrorMessage = null }) {
+                Button(
+                    onClick = { validationErrorMessage = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.brand, contentColor = palette.onBrand)
+                ) {
                     Text("Aceptar")
                 }
             }
         )
     }
 
-    // Modal Confirmación de Restauración
     if (pendingRestoreSummary != null) {
         val bSummary = pendingRestoreSummary!!
         val movStr = if (bSummary.movementCount == 1) "1 movimiento" else "${bSummary.movementCount} movimientos"
         val listStr = if (bSummary.listCount == 1) "1 lista de compras" else "${bSummary.listCount} listas de compras"
-        val catStr = if (bSummary.categoryCount == 1) "1 categoría" else "${bSummary.categoryCount} categorías"
         val goalStr = if (bSummary.goalCount == 1) "1 meta" else "${bSummary.goalCount} metas"
 
         AlertDialog(
             onDismissRequest = { pendingRestoreSummary = null },
-            title = { Text("Restaurar respaldo de Alcancía") },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
+            title = { Text("Restaurar respaldo de Alcancía", fontWeight = FontWeight.Bold, color = palette.t1) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "El archivo contiene: $movStr, $listStr, $catStr y $goalStr.",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "El archivo contiene: $movStr, $listStr y $goalStr.",
+                        fontSize = 14.sp,
+                        color = palette.t2
                     )
 
                     Text(
                         text = "Selecciona el método de restauración:",
-                        style = MaterialTheme.typography.labelMedium,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = palette.accent
                     )
 
-                    // Opción Combinar
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (restoreMode == "COMBINE") MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
-                            .padding(8.dp)
+                    Surface(
+                        onClick = { restoreMode = "COMBINE" },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (restoreMode == "COMBINE") palette.s2 else Color.Transparent,
+                        border = if (restoreMode == "COMBINE") BorderStroke(1.dp, palette.accent.copy(alpha = 0.45f)) else null
                     ) {
-                        RadioButton(
-                            selected = restoreMode == "COMBINE",
-                            onClick = { restoreMode = "COMBINE" }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("Combinar (recomendado)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                            Text("Agrega los datos faltantes sin borrar los actuales.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp)
+                        ) {
+                            RadioButton(
+                                selected = restoreMode == "COMBINE",
+                                onClick = { restoreMode = "COMBINE" },
+                                colors = ajustesRadioColors(palette)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Combinar (recomendado)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = palette.t1)
+                                Text("Agrega los datos faltantes sin borrar los actuales.", fontSize = 12.sp, color = palette.t2)
+                            }
                         }
                     }
 
-                    // Opción Reemplazar todo
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (restoreMode == "REPLACE") MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f) else Color.Transparent)
-                            .padding(8.dp)
+                    Surface(
+                        onClick = { restoreMode = "REPLACE" },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (restoreMode == "REPLACE") palette.gasto.copy(alpha = 0.14f) else Color.Transparent,
+                        border = if (restoreMode == "REPLACE") BorderStroke(1.dp, palette.gasto.copy(alpha = 0.45f)) else null
                     ) {
-                        RadioButton(
-                            selected = restoreMode == "REPLACE",
-                            onClick = { restoreMode = "REPLACE" }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("Reemplazar todo", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                            Text("Borra los datos actuales y aplica únicamente el respaldo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp)
+                        ) {
+                            RadioButton(
+                                selected = restoreMode == "REPLACE",
+                                onClick = { restoreMode = "REPLACE" },
+                                colors = ajustesRadioColors(palette)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Reemplazar todo", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = palette.gasto)
+                                Text("Borra los datos actuales y aplica únicamente el respaldo.", fontSize = 12.sp, color = palette.t2)
+                            }
                         }
                     }
                 }
@@ -715,14 +604,18 @@ fun AjustesDatosScreen(
                             }
                         }
                     },
-                    shape = RoundedCornerShape(16.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (restoreMode == "REPLACE") palette.gasto else palette.brand,
+                        contentColor = palette.onBrand
+                    ),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(if (restoreMode == "REPLACE") "Reemplazar y restaurar" else "Combinar y restaurar")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingRestoreSummary = null }) {
-                    Text("Cancelar")
+                    Text("Cancelar", color = palette.t2)
                 }
             }
         )

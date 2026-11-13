@@ -7,9 +7,6 @@ import com.example.data.model.CategoryEntity
 import com.example.data.model.GoalEntity
 import com.example.data.model.TransactionEntity
 import kotlinx.coroutines.flow.Flow
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class FinanceRepository(
     private val transactionDao: TransactionDao,
@@ -107,50 +104,5 @@ class FinanceRepository(
         if (categoryDao.getCategoryCount() == 0) {
             categoryDao.insertCategories(com.example.data.db.AppDatabase.INITIAL_CATEGORIES)
         }
-    }
-
-    /**
-     * Generates a clean UTF-8 CSV with BOM (\uFEFF) for direct Microsoft Excel & Google Sheets compatibility.
-     * Columns: Fecha, Hora, Tipo, Categoría, Meta, Nota, Monto.
-     * Signed amount: positive for income/withdraw, negative for expense/deposit.
-     * No internal IDs are exposed.
-     */
-    suspend fun generateCsvData(currencyCode: String): String {
-        val transactions = transactionDao.getAllTransactionsList()
-        val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-        val sb = StringBuilder()
-        // Prepend UTF-8 BOM
-        sb.append("\uFEFF")
-        sb.append("Fecha,Hora,Tipo,Categoría,Meta,Nota,Monto\n")
-
-        for (tx in transactions) {
-            val dateStr = dateFormat.format(Date(tx.dateMillis))
-            val timeStr = tx.timeString ?: ""
-            val tipoStr = when (tx.type) {
-                "INCOME" -> "Ingreso"
-                "EXPENSE" -> "Gasto"
-                "SAVING_DEPOSIT" -> "Aporte a meta"
-                "SAVING_WITHDRAW" -> "Retiro de meta"
-                else -> tx.type
-            }
-            val catStr = if (tx.categoryName.isNotBlank()) {
-                "${tx.categoryEmoji} ${tx.categoryName}".trim()
-            } else {
-                "Sin categoría"
-            }
-            val metaStr = tx.goalName.ifBlank { "-" }
-            val cleanNote = tx.note.replace("\"", "\"\"")
-            val cleanCat = catStr.replace("\"", "\"\"")
-            val cleanMeta = metaStr.replace("\"", "\"\"")
-
-            // Signed amount: positive for income and saving withdraw; negative for expense and saving deposit
-            val signedAmount = when (tx.type) {
-                "INCOME", "SAVING_WITHDRAW" -> tx.amount
-                else -> -tx.amount
-            }
-
-            sb.append("\"$dateStr\",\"$timeStr\",\"$tipoStr\",\"$cleanCat\",\"$cleanMeta\",\"$cleanNote\",$signedAmount\n")
-        }
-        return sb.toString()
     }
 }

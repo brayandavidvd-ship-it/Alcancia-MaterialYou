@@ -22,7 +22,8 @@ data class ChatActionProposal(
     val arguments: Map<String, Any?>,
     val status: ActionStatus = ActionStatus.PENDING,
     val resultText: String? = null,
-    val allCalls: List<GeminiFunctionCallItem> = emptyList()
+    val allCalls: List<GeminiFunctionCallItem> = emptyList(),
+    val hasPendingApiFunctionCall: Boolean = true
 )
 
 data class ChatMessage(

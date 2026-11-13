@@ -80,29 +80,9 @@ class BackupManager(
             put("cloudAiConsentAccepted", settings.cloudAiConsentAccepted)
             put("cloudAiModel", settings.cloudAiModel)
             put("movementsGridView", prefs.getBoolean("movements_grid_view", false))
-            put("categoriesGridView", prefs.getBoolean("categories_grid_view", false))
             put("goalsGridView", prefs.getBoolean("goals_grid_view", false))
         }
         root.put("settings", settingsObj)
-
-        // 2. Categories
-        val categories = database.categoryDao().getAllCategoriesList()
-        val categoriesArray = JSONArray()
-        for (cat in categories) {
-            val catObj = JSONObject().apply {
-                put("id", cat.id)
-                put("name", cat.name)
-                put("emoji", cat.emoji)
-                put("colorHex", cat.colorHex)
-                if (cat.monthlyBudgetLimit != null) {
-                    put("monthlyBudgetLimit", cat.monthlyBudgetLimit)
-                }
-                put("isDefault", cat.isDefault)
-                put("sortOrder", cat.sortOrder)
-            }
-            categoriesArray.put(catObj)
-        }
-        root.put("categories", categoriesArray)
 
         // 3. Goals
         val goals = database.goalDao().getAllGoalsSync()
@@ -129,9 +109,6 @@ class BackupManager(
             val txObj = JSONObject().apply {
                 put("type", tx.type)
                 put("amount", tx.amount)
-                put("categoryId", tx.categoryId)
-                put("categoryName", tx.categoryName)
-                put("categoryEmoji", tx.categoryEmoji)
                 put("note", tx.note)
                 put("dateMillis", tx.dateMillis)
                 put("repeatInterval", tx.repeatInterval)
@@ -255,32 +232,11 @@ class BackupManager(
                     cloudAiModel = sObj.optString("cloudAiModel", "gemini-3.5-flash-lite")
                 )
                 movementsGrid = sObj.optBoolean("movementsGridView", false)
-                categoriesGrid = sObj.optBoolean("categoriesGridView", false)
                 goalsGrid = sObj.optBoolean("goalsGridView", false)
             }
 
-            // Parse categories
-            val categoriesList = mutableListOf<CategoryEntity>()
-            if (root.has("categories")) {
-                val arr = root.getJSONArray("categories")
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val budget = if (o.has("monthlyBudgetLimit") && !o.isNull("monthlyBudgetLimit")) {
-                        o.getDouble("monthlyBudgetLimit")
-                    } else null
-                    categoriesList.add(
-                        CategoryEntity(
-                            id = o.optString("id", "cat_${System.currentTimeMillis()}_$i"),
-                            name = o.optString("name", "Categoría"),
-                            emoji = o.optString("emoji", "🏷️"),
-                            colorHex = o.optString("colorHex", "#FF8A65"),
-                            monthlyBudgetLimit = budget,
-                            isDefault = o.optBoolean("isDefault", false),
-                            sortOrder = o.optInt("sortOrder", i)
-                        )
-                    )
-                }
-            }
+            // Legacy "categories" array in older backups is silently ignored
+            val categoriesList = emptyList<CategoryEntity>()
 
             // Parse goals
             val goalsList = mutableListOf<GoalEntity>()
@@ -317,9 +273,9 @@ class BackupManager(
                         TransactionEntity(
                             type = o.optString("type", "EXPENSE"),
                             amount = o.optDouble("amount", 0.0),
-                            categoryId = o.optString("categoryId", ""),
-                            categoryName = o.optString("categoryName", ""),
-                            categoryEmoji = o.optString("categoryEmoji", ""),
+                            categoryId = "",
+                            categoryName = "",
+                            categoryEmoji = "",
                             note = o.optString("note", ""),
                             dateMillis = o.optLong("dateMillis", System.currentTimeMillis()),
                             repeatInterval = o.optString("repeatInterval", "NONE"),
@@ -397,12 +353,9 @@ class BackupManager(
         try {
             if (replaceAll) {
                 database.transactionDao().clearAllTransactions()
-                database.categoryDao().clearAllCategories()
                 database.goalDao().clearAllGoals()
                 database.shoppingDao().clearAllShoppingLists()
                 database.shoppingDao().clearAllShoppingItems()
-
-                database.categoryDao().insertCategories(data.categories)
 
                 val goalOldToNewId = mutableMapOf<Long, Long>()
                 for (g in data.goals) {
@@ -430,14 +383,6 @@ class BackupManager(
                 }
             } else {
                 // Combinar
-                val existingCategories = database.categoryDao().getAllCategoriesList()
-                val existingCatIds = existingCategories.map { it.id }.toSet()
-                for (cat in data.categories) {
-                    if (!existingCatIds.contains(cat.id)) {
-                        database.categoryDao().insertCategory(cat)
-                    }
-                }
-
                 val existingGoals = database.goalDao().getAllGoalsSync()
                 val existingGoalNames = existingGoals.map { it.name.trim().lowercase() }.toSet()
                 val goalOldToNewId = mutableMapOf<Long, Long>()
@@ -488,7 +433,6 @@ class BackupManager(
                 database.settingsDao().setSettings(data.settings)
                 prefs.edit()
                     .putBoolean("movements_grid_view", data.movementsGridView)
-                    .putBoolean("categories_grid_view", data.categoriesGridView)
                     .putBoolean("goals_grid_view", data.goalsGridView)
                     .apply()
             }

@@ -70,6 +70,32 @@ object ReminderHelper {
     const val CHANNEL_ID = "alcancia_reminders_channel"
     private const val NOTIFICATION_ID = 2001
     private const val ALARM_REQUEST_CODE = 3001
+    private const val PREFS_NAME = "alcancia_settings_cache"
+    private const val KEY_CUSTOM_REMINDER_MESSAGE = "customReminderMessage"
+    const val DEFAULT_REMINDER_MESSAGE =
+        "No olvides registrar tus movimientos de hoy y mantener al día tus metas de ahorro."
+
+    fun getReminderMessage(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val saved = prefs.getString(KEY_CUSTOM_REMINDER_MESSAGE, null)?.trim()
+        return if (saved.isNullOrBlank()) DEFAULT_REMINDER_MESSAGE else saved
+    }
+
+    fun setReminderMessage(context: Context, message: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val clean = message.trim()
+        if (clean.isBlank() || clean == DEFAULT_REMINDER_MESSAGE) {
+            prefs.edit().remove(KEY_CUSTOM_REMINDER_MESSAGE).apply()
+        } else {
+            prefs.edit().putString(KEY_CUSTOM_REMINDER_MESSAGE, clean).apply()
+        }
+    }
+
+    fun resetReminderMessage(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().remove(KEY_CUSTOM_REMINDER_MESSAGE).apply()
+        return DEFAULT_REMINDER_MESSAGE
+    }
 
     fun areNotificationsEnabled(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -166,11 +192,7 @@ object ReminderHelper {
         )
 
         val title = if (isTest) "¡Notificación de prueba de Alcancía! 🐷" else "Hora de revisar tus finanzas 🐷"
-        val message = if (isTest) {
-            "Tus recordatorios están configurados y funcionando a la perfección."
-        } else {
-            "No olvides registrar tus movimientos de hoy y mantener al día tus metas de ahorro."
-        }
+        val message = getReminderMessage(context)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)

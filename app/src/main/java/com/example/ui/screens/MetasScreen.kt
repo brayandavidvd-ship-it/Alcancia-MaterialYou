@@ -2,71 +2,76 @@ package com.example.ui.screens
 
 import android.app.DatePickerDialog
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -74,18 +79,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.GoalEntity
 import com.example.data.model.TransactionEntity
-import com.example.ui.components.AlcanciaCard
 import com.example.ui.components.CurrencyUtils
-import com.example.ui.theme.LocalExpenseColor
-import com.example.ui.theme.LocalIncomeColor
-import com.example.ui.theme.LocalIsCompactDensity
+import com.example.ui.theme.ColorblindExpenseColor
+import com.example.ui.theme.ColorblindIncomeColor
 import com.example.ui.theme.LocalNumberFontFamily
-import com.example.ui.theme.LocalSavingsColor
 import com.example.ui.viewmodel.AlcanciaViewModel
 import com.example.ui.viewmodel.GoalWithProgress
 import java.text.SimpleDateFormat
@@ -103,34 +107,78 @@ fun MetasScreen(
     val goalsWithProgress by viewModel.goalsWithProgressState.collectAsStateWithLifecycle()
     val isGridView by viewModel.isGoalsGridView.collectAsStateWithLifecycle()
     val settings by viewModel.settingsState.collectAsStateWithLifecycle()
-    val savingsColor = LocalSavingsColor.current
-    val expenseColor = LocalExpenseColor.current
-    val isCompact = LocalIsCompactDensity.current
+    val pinnedGoalId by viewModel.pinnedGoalId.collectAsStateWithLifecycle()
+
+    // Palette resolution using InicioPalette (Rule E7 and Block C)
+    val systemDark = isSystemInDarkTheme()
+    val isDark = when (settings.themeMode) {
+        "LIGHT" -> false
+        "DARK" -> true
+        else -> systemDark
+    }
+    val rawPalette = if (isDark) InicioPalette.Dark else InicioPalette.Light
+    val palette = if (settings.isColorblindPreset) {
+        rawPalette.copy(
+            ingreso = ColorblindIncomeColor,
+            gasto = ColorblindExpenseColor
+        )
+    } else {
+        rawPalette
+    }
+
+    val togglePin: (Long) -> Unit = { goalId ->
+        viewModel.togglePinGoal(goalId)
+    }
+
+    // Clean up orphaned pinnedGoalId safely outside composition
+    LaunchedEffect(goalsWithProgress, pinnedGoalId) {
+        if (pinnedGoalId != -1L && goalsWithProgress.isNotEmpty() && goalsWithProgress.none { it.goal.id == pinnedGoalId }) {
+            viewModel.clearPinnedGoalIfMatches(pinnedGoalId)
+        }
+    }
+
+    // Resolve hero goal: pinned goal if exists, otherwise fallback to first active or first goal
+    val pinnedGoal = remember(goalsWithProgress, pinnedGoalId) {
+        if (goalsWithProgress.isEmpty()) null
+        else {
+            val found = if (pinnedGoalId != -1L) goalsWithProgress.find { it.goal.id == pinnedGoalId } else null
+            found ?: goalsWithProgress.firstOrNull { !it.isCompleted } ?: goalsWithProgress.firstOrNull()
+        }
+    }
 
     var selectedGoalId by remember { mutableStateOf<Long?>(null) }
     var showCreateGoalDialog by remember { mutableStateOf(false) }
     var goalToEdit by remember { mutableStateOf<GoalEntity?>(null) }
     var goalToDelete by remember { mutableStateOf<GoalEntity?>(null) }
-    var goalContextMenu by remember { mutableStateOf<GoalEntity?>(null) }
 
-    // If viewing a goal's detail
+    // Quick Keypad Modal for Aportar / Retirar
+    var activeKeypadGoal by remember { mutableStateOf<GoalWithProgress?>(null) }
+    var activeKeypadIsWithdrawal by remember { mutableStateOf(false) }
+
+    // Completed goals accordion state
+    var isCompletedExpanded by remember { mutableStateOf(false) }
+
+    // Secondary Screen: Goal Detail View
     if (selectedGoalId != null) {
         val selectedGoalProgress = goalsWithProgress.find { it.goal.id == selectedGoalId }
         if (selectedGoalProgress != null) {
             GoalDetailView(
                 goalWithProgress = selectedGoalProgress,
+                isPinned = (pinnedGoalId == selectedGoalProgress.goal.id),
                 currencySymbol = settings.currencySymbol,
+                palette = palette,
                 onBack = { selectedGoalId = null },
-                onAddContribution = { isWithdrawal, amount, note, dateMillis ->
-                    viewModel.addTransaction(
-                        type = if (isWithdrawal) "SAVING_WITHDRAW" else "SAVING_DEPOSIT",
-                        amount = amount,
-                        category = null,
-                        note = note,
-                        dateMillis = dateMillis,
-                        repeatInterval = "NONE",
-                        goal = selectedGoalProgress.goal
-                    )
+                onTogglePin = { togglePin(selectedGoalProgress.goal.id) },
+                onEditGoal = { goalToEdit = selectedGoalProgress.goal },
+                onDeleteGoal = {
+                    goalToDelete = selectedGoalProgress.goal
+                },
+                onOpenKeypad = { isWithdrawal ->
+                    activeKeypadGoal = selectedGoalProgress
+                    activeKeypadIsWithdrawal = isWithdrawal
+                },
+                onDeleteTransaction = { tx ->
+                    viewModel.deleteTransaction(tx)
                 },
                 onUpdateTransaction = { tx, newAmount, newNote, newDate ->
                     viewModel.updateTransaction(
@@ -140,329 +188,527 @@ fun MetasScreen(
                         category = null,
                         note = newNote,
                         dateMillis = newDate,
-                        repeatInterval = "NONE",
-                        goal = selectedGoalProgress.goal
+                        repeatInterval = tx.repeatInterval,
+                        customRepeatDays = tx.customRepeatDays,
+                        timeString = tx.timeString
                     )
-                },
-                onDeleteTransaction = { tx ->
-                    viewModel.deleteTransaction(tx)
-                },
-                viewModel = viewModel
+                }
             )
         } else {
             selectedGoalId = null
         }
     } else {
-
-    val hasApiKey by viewModel.hasGeminiApiKey.collectAsStateWithLifecycle()
-    val showAiFab = settings.isCloudAiEnabled && settings.cloudAiConsentAccepted && hasApiKey
-
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = 86.dp)
-            ) {
-                if (showAiFab) {
-                    SmallFloatingActionButton(
-                        onClick = { viewModel.openAssistantChat() },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.testTag("ai_assistant_fab_metas")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Asistente de IA",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                FloatingActionButton(
-                    onClick = { showCreateGoalDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(22.dp),
-                    modifier = Modifier.testTag("create_goal_fab")
-                ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Nueva meta", modifier = Modifier.size(28.dp))
-                }
-            }
+        // Main Metas Screen
+        val otherGoals = remember(goalsWithProgress, pinnedGoal) {
+            goalsWithProgress.filter { it.goal.id != pinnedGoal?.goal?.id && !it.isCompleted }
         }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
+        val completedGoals = remember(goalsWithProgress) {
+            goalsWithProgress.filter { it.isCompleted }
+        }
+
+        Box(
+            modifier = modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(
-                start = if (isCompact) 14.dp else 20.dp,
-                end = if (isCompact) 14.dp else 20.dp,
-                top = 16.dp,
-                bottom = 124.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 16.dp)
+                .background(palette.bg)
+                .statusBarsPadding()
         ) {
-            // Header
-            item(key = "metas_header") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Metas de Ahorro",
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Ahorra para lo que te importa",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    IconButton(onClick = { viewModel.toggleGoalsViewMode() }) {
-                        Icon(
-                            imageVector = if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                            contentDescription = if (isGridView) "Ver como lista" else "Ver como cuadrícula",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            if (goalsWithProgress.isEmpty()) {
-                item(key = "empty_goals") {
-                    AlcanciaCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(36.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("metas_screen_list"),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 124.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Header: Circle Flag Icon (40dp, s3) + Title + Circle Grid Toggle (40dp, s2) - C5
+                item(key = "metas_header") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(64.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(savingsColor.copy(alpha = 0.18f)),
+                                    .background(palette.s3),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(text = "🎯", fontSize = 32.sp)
+                                Icon(
+                                    imageVector = Icons.Default.Flag,
+                                    contentDescription = null,
+                                    tint = palette.t1,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Sin metas de ahorro todavía",
-                                style = MaterialTheme.typography.titleMedium,
+                                text = "Metas",
+                                fontSize = 28.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = palette.t1
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Crea tu primera meta con un monto objetivo y fecha límite para calcular cuánto ahorrar cada mes.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.toggleGoalsViewMode() },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(palette.s2)
+                        ) {
+                            Icon(
+                                imageVector = if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                                contentDescription = "Cambiar vista",
+                                tint = palette.t2,
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = { showCreateGoalDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                shape = RoundedCornerShape(18.dp)
+                        }
+                    }
+                }
+
+                // HERO CARD: Pinned / Featured Goal
+                if (pinnedGoal != null) {
+                    item(key = "hero_pinned_goal") {
+                        HeroGoalCard(
+                            goalWithProgress = pinnedGoal,
+                            isExplicitlyPinned = (pinnedGoalId == pinnedGoal.goal.id),
+                            currencySymbol = settings.currencySymbol,
+                            palette = palette,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                selectedGoalId = pinnedGoal.goal.id
+                            },
+                            onAportar = {
+                                activeKeypadGoal = pinnedGoal
+                                activeKeypadIsWithdrawal = false
+                            },
+                            onRetirar = {
+                                activeKeypadGoal = pinnedGoal
+                                activeKeypadIsWithdrawal = true
+                            }
+                        )
+                    }
+                }
+
+                // Empty state if no goals at all
+                if (goalsWithProgress.isEmpty()) {
+                    item(key = "metas_empty_state") {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            color = palette.s1,
+                            border = BorderStroke(1.dp, palette.s3)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text("Crear mi primera meta", fontWeight = FontWeight.Bold)
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(palette.s2),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Flag,
+                                        contentDescription = null,
+                                        tint = palette.ahorro,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "Sin metas activas",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = palette.t1
+                                )
+                                Text(
+                                    text = "Crea tu primera meta de ahorro con el botón de abajo.",
+                                    fontSize = 13.sp,
+                                    color = palette.t2,
+                                    textAlign = TextAlign.Center
+                                )
                             }
                         }
                     }
                 }
-            } else if (isGridView) {
-                // 3-Column Grid
-                items(
-                    items = goalsWithProgress.chunked(3),
-                    key = { chunk -> "grid_goals_${chunk.first().goal.id}" }
-                ) { chunk ->
+
+                // OTRAS METAS Section
+                if (otherGoals.isNotEmpty()) {
+                    item(key = "otras_metas_header") {
+                        Text(
+                            text = "OTRAS METAS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.t2,
+                            letterSpacing = 1.2.sp,
+                            modifier = Modifier.padding(top = 4.dp, start = 2.dp)
+                        )
+                    }
+
+                    if (isGridView) {
+                        // 2-column grid layout
+                        val pairs = otherGoals.chunked(2)
+                        items(pairs, key = { it.first().goal.id }) { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                for (item in rowItems) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        OtherGoalGridCard(
+                                            goalWithProgress = item,
+                                            currencySymbol = settings.currencySymbol,
+                                            palette = palette,
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                selectedGoalId = item.goal.id
+                                            },
+                                            onPinClick = { togglePin(item.goal.id) }
+                                        )
+                                    }
+                                }
+                                if (rowItems.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    } else {
+                        // 1-column list layout
+                        items(otherGoals, key = { it.goal.id }) { item ->
+                            OtherGoalListCard(
+                                goalWithProgress = item,
+                                currencySymbol = settings.currencySymbol,
+                                palette = palette,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    selectedGoalId = item.goal.id
+                                },
+                                onPinClick = { togglePin(item.goal.id) }
+                            )
+                        }
+                    }
+                }
+
+                // COMPLETADAS Section
+                if (completedGoals.isNotEmpty()) {
+                    item(key = "completadas_accordion") {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    isCompletedExpanded = !isCompletedExpanded
+                                },
+                            shape = RoundedCornerShape(16.dp),
+                            color = palette.s1,
+                            border = BorderStroke(1.dp, palette.s3)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Completadas · ${completedGoals.size}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = palette.t1
+                                    )
+                                    Icon(
+                                        imageVector = if (isCompletedExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.ChevronRight,
+                                        contentDescription = "Expandir completadas",
+                                        tint = palette.t2,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                if (isCompletedExpanded) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .padding(bottom = 12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        for (item in completedGoals) {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        selectedGoalId = item.goal.id
+                                                    },
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = palette.s2
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(28.dp)
+                                                                .clip(CircleShape)
+                                                                .background(palette.ingreso.copy(alpha = 0.2f)),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Check,
+                                                                contentDescription = null,
+                                                                tint = palette.ingreso,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                        Text(
+                                                            text = item.goal.name,
+                                                            fontSize = 14.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = palette.t1
+                                                        )
+                                                    }
+
+                                                    Text(
+                                                        text = CurrencyUtils.formatCompact(item.goal.targetAmount, settings.currencySymbol),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = palette.t2
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Bottom Right "+ Nueva meta" Button (C1: fondo brand #5D7396, texto onBrand #FFFFFF)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = 100.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = palette.brand,
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .testTag("nueva_meta_button")
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showCreateGoalDialog = true
+                        }
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        for (gp in chunk) {
-                            GridGoalCard(
-                                goalWithProgress = gp,
-                                currencySymbol = settings.currencySymbol,
-                                modifier = Modifier.weight(1f),
-                                onClick = { selectedGoalId = gp.goal.id },
-                                onLongClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    goalContextMenu = gp.goal
-                                }
-                            )
-                        }
-                        for (i in 0 until (3 - chunk.size)) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = palette.onBrand,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Nueva meta",
+                            color = palette.onBrand,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
                     }
-                }
-            } else {
-                // List View
-                items(
-                    items = goalsWithProgress,
-                    key = { it.goal.id }
-                ) { gp ->
-                    ListGoalCard(
-                        goalWithProgress = gp,
-                        currencySymbol = settings.currencySymbol,
-                        onClick = { selectedGoalId = gp.goal.id },
-                        onEdit = { goalToEdit = gp.goal },
-                        onDelete = { goalToDelete = gp.goal },
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            goalContextMenu = gp.goal
-                        }
-                    )
                 }
             }
         }
     }
-}
 
-    // Context Menu Dialog on Long Press (Main Menu)
-    if (goalContextMenu != null) {
-        val target = goalContextMenu!!
-        AlertDialog(
-            onDismissRequest = { goalContextMenu = null },
-            title = { Text("${target.emoji} ${target.name}", fontWeight = FontWeight.Bold) },
-            text = { Text("Selecciona una acción para esta meta de ahorro.") },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            val g = target
-                            goalContextMenu = null
-                            goalToEdit = g
-                        }
-                    ) {
-                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Editar")
-                    }
-
-                    Button(
-                        onClick = {
-                            val g = target
-                            goalContextMenu = null
-                            goalToDelete = g
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = expenseColor)
-                    ) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Eliminar", color = Color.White)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { goalContextMenu = null }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
-
-    // Create Goal Dialog / Sheet
-    if (showCreateGoalDialog) {
-        GoalEditorDialog(
-            goal = null,
+    // Modal Sheet: Aportar / Retirar Keypad (C2 & C3)
+    if (activeKeypadGoal != null) {
+        GoalKeypadBottomSheet(
+            goalWithProgress = activeKeypadGoal!!,
+            initialIsWithdrawal = activeKeypadIsWithdrawal,
             currencySymbol = settings.currencySymbol,
-            onDismiss = { showCreateGoalDialog = false },
-            onSave = { name, emoji, target, deadline ->
-                viewModel.createGoal(name, emoji, target, deadline)
-                showCreateGoalDialog = false
-            }
-        )
-    }
-
-    // Edit Goal Dialog
-    if (goalToEdit != null) {
-        GoalEditorDialog(
-            goal = goalToEdit,
-            currencySymbol = settings.currencySymbol,
-            onDismiss = { goalToEdit = null },
-            onSave = { name, emoji, target, deadline ->
-                viewModel.updateGoal(
-                    goalToEdit!!.copy(
-                        name = name,
-                        emoji = emoji,
-                        targetAmount = target,
-                        deadlineDateMillis = deadline
-                    )
+            palette = palette,
+            onDismiss = { activeKeypadGoal = null },
+            onConfirm = { isWithdrawal, amount, note ->
+                viewModel.addTransaction(
+                    type = if (isWithdrawal) "SAVING_WITHDRAW" else "SAVING_DEPOSIT",
+                    amount = amount,
+                    category = null,
+                    note = note,
+                    dateMillis = System.currentTimeMillis(),
+                    repeatInterval = "NONE",
+                    goal = activeKeypadGoal!!.goal
                 )
+                activeKeypadGoal = null
+            }
+        )
+    }
+
+    // Dialog: Create or Edit Goal
+    if (showCreateGoalDialog || goalToEdit != null) {
+        GoalEditorDialog(
+            goalToEdit = goalToEdit,
+            currencySymbol = settings.currencySymbol,
+            palette = palette,
+            onDismiss = {
+                showCreateGoalDialog = false
+                goalToEdit = null
+            },
+            onSave = { name, emoji, target, deadline ->
+                if (goalToEdit != null) {
+                    viewModel.updateGoal(
+                        goalToEdit!!.copy(
+                            name = name,
+                            emoji = emoji,
+                            targetAmount = target,
+                            deadlineDateMillis = deadline
+                        )
+                    )
+                } else {
+                    viewModel.createGoal(name, emoji, target, deadline)
+                }
+                showCreateGoalDialog = false
                 goalToEdit = null
             }
         )
     }
 
-    // Delete Goal Confirmation
+    // Dialog: Delete Goal Confirmation
     if (goalToDelete != null) {
         val target = goalToDelete!!
         AlertDialog(
             onDismissRequest = { goalToDelete = null },
-            title = { Text("¿Eliminar meta?") },
-            text = { Text("Se eliminará la meta \"${target.name}\" y su historial de aportes.") },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
+            title = { Text("¿Eliminar la meta \"${target.name}\"?") },
+            text = { Text("Se eliminará la meta y los ahorros registrados volverán a reflejarse como saldo disponible.") },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.deleteGoal(target)
-                        goalToDelete = null
                         if (selectedGoalId == target.id) {
                             selectedGoalId = null
                         }
+                        goalToDelete = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = expenseColor)
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.gasto)
                 ) {
                     Text("Eliminar", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { goalToDelete = null }) {
-                    Text("Cancelar")
+                    Text("Cancelar", color = palette.t2)
                 }
             }
         )
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+// Donut Progress Ring Component (C3: color ahorro #B9A6FF)
 @Composable
-private fun ListGoalCard(
+private fun GoalDonutRing(
+    progress: Float,
+    modifier: Modifier = Modifier,
+    size: Dp = 80.dp,
+    strokeWidth: Dp = 8.dp,
+    percentageFontSize: TextUnit = 16.sp,
+    trackColor: Color,
+    progressColor: Color,
+    textColor: Color
+) {
+    val clampedProgress = progress.coerceIn(0f, 1f)
+    val percentage = (clampedProgress * 100).toInt()
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokePx = strokeWidth.toPx()
+            val arcSize = Size(this.size.width - strokePx, this.size.height - strokePx)
+            val topLeft = Offset(strokePx / 2f, strokePx / 2f)
+
+            // Background circle track
+            drawArc(
+                color = trackColor,
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokePx, cap = StrokeCap.Round)
+            )
+
+            // Progress arc
+            if (clampedProgress > 0f) {
+                drawArc(
+                    color = progressColor,
+                    startAngle = -90f,
+                    sweepAngle = clampedProgress * 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                )
+            }
+        }
+        Text(
+            text = "$percentage%",
+            color = textColor,
+            fontSize = percentageFontSize,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+// Hero Card (Pinned Goal)
+@Composable
+private fun HeroGoalCard(
     goalWithProgress: GoalWithProgress,
+    isExplicitlyPinned: Boolean,
     currencySymbol: String,
+    palette: InicioPalette.Colors,
     onClick: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onAportar: () -> Unit,
+    onRetirar: () -> Unit
 ) {
     val goal = goalWithProgress.goal
-    val savingsColor = LocalSavingsColor.current
-    val expenseColor = LocalExpenseColor.current
-    val numberFont = LocalNumberFontFamily.current
+    val saved = goalWithProgress.savedAmount
+    val target = goal.targetAmount
+    val remaining = (target - saved).coerceAtLeast(0.0)
 
-    AlcanciaCard(
-        modifier = modifier
+    Surface(
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
+            .clip(RoundedCornerShape(24.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(24.dp),
+        color = palette.s1,
+        border = BorderStroke(1.dp, palette.s3)
     ) {
         Column(
             modifier = Modifier
@@ -471,463 +717,683 @@ private fun ListGoalCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(savingsColor.copy(alpha = 0.16f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = goal.emoji, fontSize = 22.sp)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = goal.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (goalWithProgress.isCompleted) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = savingsColor.copy(alpha = 0.18f),
-                                modifier = Modifier.padding(top = 2.dp)
+                // Donut Ring (C3: progreso en palette.ahorro)
+                GoalDonutRing(
+                    progress = goalWithProgress.progress,
+                    size = 80.dp,
+                    strokeWidth = 8.dp,
+                    percentageFontSize = 16.sp,
+                    trackColor = palette.s3,
+                    progressColor = palette.ahorro,
+                    textColor = palette.t1
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    // Pinned Chip (shown when explicitly pinned)
+                    if (isExplicitlyPinned) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = palette.s3,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = null,
+                                    tint = palette.ahorro,
+                                    modifier = Modifier
+                                        .size(11.dp)
+                                        .rotate(45f)
+                                )
                                 Text(
-                                    text = "¡Meta cumplida! 🎉",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = savingsColor,
+                                    text = "Fijada",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    color = palette.ahorro
                                 )
                             }
-                        } else if (goalWithProgress.recommendedMonthlySaving != null) {
-                            Text(
-                                text = "Ahorra aprox. ${CurrencyUtils.formatAmount(goalWithProgress.recommendedMonthlySaving, currencySymbol)}/mes",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
+                    }
+
+                    // Goal Name
+                    Text(
+                        text = goal.name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.t1,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // Target Amounts
+                    Text(
+                        text = "${CurrencyUtils.formatCompact(saved, currencySymbol)} de ${CurrencyUtils.formatCompact(target, currencySymbol)}",
+                        fontSize = 13.sp,
+                        color = palette.t2,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+
+                    // Remaining
+                    Text(
+                        text = if (goalWithProgress.isCompleted) "Meta completada 🎉" else "Faltan ${CurrencyUtils.formatCompact(remaining, currencySymbol)}",
+                        fontSize = 13.sp,
+                        color = palette.t2,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action Buttons: + Aportar / - Retirar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onAportar() },
+                    shape = RoundedCornerShape(16.dp),
+                    color = palette.s2
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "+ Aportar",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.t1
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "${(goalWithProgress.progress * 100).toInt()}%",
-                        style = MaterialTheme.typography.titleMedium.copy(fontFamily = numberFont),
-                        fontWeight = FontWeight.Bold,
-                        color = savingsColor
-                    )
-                    Text(
-                        text = "${CurrencyUtils.formatCompact(goalWithProgress.savedAmount, currencySymbol)} / ${CurrencyUtils.formatCompact(goal.targetAmount, currencySymbol)}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = numberFont),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onRetirar() },
+                    shape = RoundedCornerShape(16.dp),
+                    color = palette.s2
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "− Retirar",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.t1
+                        )
+                    }
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
+// Other Goal Card (2-column Grid, C6: pin con zona táctil 40dp y color t2)
+@Composable
+private fun OtherGoalGridCard(
+    goalWithProgress: GoalWithProgress,
+    currencySymbol: String,
+    palette: InicioPalette.Colors,
+    onClick: () -> Unit,
+    onPinClick: () -> Unit
+) {
+    val goal = goalWithProgress.goal
+    val percentage = (goalWithProgress.progress.coerceIn(0f, 1f) * 100).toInt()
 
-            // Static Progress bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(goalWithProgress.progress.coerceAtLeast(0.02f))
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (goalWithProgress.isCompleted) MaterialTheme.colorScheme.primary else savingsColor)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action row with Edit and Delete buttons in the main menu
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        color = palette.s1,
+        border = BorderStroke(1.dp, palette.s3)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            // Top Row: Flag circle + Pin button (min 40dp touch target, color t2)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Toca para ver historial",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(palette.s2),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = null,
+                        tint = palette.ahorro,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(
-                        onClick = onEdit,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Editar meta",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Eliminar meta",
-                            tint = expenseColor,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                IconButton(
+                    onClick = onPinClick,
+                    modifier = Modifier.size(40.dp) // C6: min 40dp
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PushPin,
+                        contentDescription = "Fijar meta",
+                        tint = palette.t2, // C6: color t2
+                        modifier = Modifier
+                            .size(18.dp)
+                            .rotate(45f)
+                    )
                 }
             }
-        }
-    }
-}
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun GridGoalCard(
-    goalWithProgress: GoalWithProgress,
-    currencySymbol: String,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val goal = goalWithProgress.goal
-    val savingsColor = LocalSavingsColor.current
-    val numberFont = LocalNumberFontFamily.current
+            Spacer(modifier = Modifier.height(10.dp))
 
-    AlcanciaCard(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
+            // Goal Name
+            Text(
+                text = goal.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.t1,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+
+            // Amounts
+            Text(
+                text = "${CurrencyUtils.formatCompact(goalWithProgress.savedAmount, currencySymbol)} de ${CurrencyUtils.formatCompact(goal.targetAmount, currencySymbol)}",
+                fontSize = 12.sp,
+                color = palette.t2,
+                modifier = Modifier.padding(top = 2.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Linear Progress Bar (C3: color ahorro)
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(savingsColor.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(palette.s3)
             ) {
-                Text(text = goal.emoji, fontSize = 20.sp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = goalWithProgress.progress.coerceIn(0f, 1f))
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(palette.ahorro)
+                )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            // Percentage (C3: color ahorro)
             Text(
-                text = goal.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = "$percentage%",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = palette.ahorro
             )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(2.dp))
+// Other Goal Card (1-column List, C6: pin con zona táctil 40dp y color t2)
+@Composable
+private fun OtherGoalListCard(
+    goalWithProgress: GoalWithProgress,
+    currencySymbol: String,
+    palette: InicioPalette.Colors,
+    onClick: () -> Unit,
+    onPinClick: () -> Unit
+) {
+    val goal = goalWithProgress.goal
+    val percentage = (goalWithProgress.progress.coerceIn(0f, 1f) * 100).toInt()
 
-            Text(
-                text = "${(goalWithProgress.progress * 100).toInt()}%",
-                style = MaterialTheme.typography.labelMedium.copy(fontFamily = numberFont),
-                fontWeight = FontWeight.Bold,
-                color = savingsColor
-            )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        color = palette.s1,
+        border = BorderStroke(1.dp, palette.s3)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(palette.s2),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Flag,
+                            contentDescription = null,
+                            tint = palette.ahorro,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
 
-            Spacer(modifier = Modifier.height(2.dp))
+                    Column {
+                        Text(
+                            text = goal.name,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.t1
+                        )
+                        Text(
+                            text = "${CurrencyUtils.formatCompact(goalWithProgress.savedAmount, currencySymbol)} de ${CurrencyUtils.formatCompact(goal.targetAmount, currencySymbol)}",
+                            fontSize = 12.sp,
+                            color = palette.t2
+                        )
+                    }
+                }
 
-            Text(
-                text = CurrencyUtils.formatCompact(goalWithProgress.savedAmount, currencySymbol),
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = numberFont),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "$percentage%",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.ahorro,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
 
-            if (goalWithProgress.isCompleted) {
-                Text(
-                    text = "¡Cumplida!",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    IconButton(
+                        onClick = onPinClick,
+                        modifier = Modifier.size(40.dp) // C6: min 40dp
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Fijar meta",
+                            tint = palette.t2, // C6: color t2
+                            modifier = Modifier
+                                .size(18.dp)
+                                .rotate(45f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Linear Progress Bar (C3: color ahorro)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(palette.s3)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = goalWithProgress.progress.coerceIn(0f, 1f))
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(palette.ahorro)
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+// Goal Detail View (C3 & C4: contentPadding inferior 124dp, colores de InicioPalette)
 @Composable
 private fun GoalDetailView(
     goalWithProgress: GoalWithProgress,
+    isPinned: Boolean,
     currencySymbol: String,
+    palette: InicioPalette.Colors,
     onBack: () -> Unit,
-    onAddContribution: (isWithdrawal: Boolean, amount: Double, note: String, dateMillis: Long) -> Unit,
-    onUpdateTransaction: (tx: TransactionEntity, newAmount: Double, newNote: String, newDate: Long) -> Unit,
-    onDeleteTransaction: (tx: TransactionEntity) -> Unit,
-    viewModel: AlcanciaViewModel
+    onTogglePin: () -> Unit,
+    onEditGoal: () -> Unit,
+    onDeleteGoal: () -> Unit,
+    onOpenKeypad: (isWithdrawal: Boolean) -> Unit,
+    onDeleteTransaction: (TransactionEntity) -> Unit,
+    onUpdateTransaction: (TransactionEntity, Double, String, Long) -> Unit
 ) {
     BackHandler { onBack() }
 
     val haptic = LocalHapticFeedback.current
     val goal = goalWithProgress.goal
-    val savingsColor = LocalSavingsColor.current
-    val incomeColor = LocalIncomeColor.current
-    val expenseColor = LocalExpenseColor.current
     val numberFont = LocalNumberFontFamily.current
+    val saved = goalWithProgress.savedAmount
+    val target = goal.targetAmount
+    val remaining = (target - saved).coerceAtLeast(0.0)
 
+    val viewModel: AlcanciaViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val transactions by viewModel.getTransactionsForGoal(goal.id).collectAsStateWithLifecycle(emptyList())
 
-    var showContributionSheet by remember { mutableStateOf(false) }
-    var contributionIsWithdrawal by remember { mutableStateOf(false) }
-    var contextMenuTx by remember { mutableStateOf<TransactionEntity?>(null) }
     var txToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
     var txToEdit by remember { mutableStateOf<TransactionEntity?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(goal.name, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(palette.bg)
+            .statusBarsPadding()
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Top Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                        tint = palette.t1
+                    )
                 }
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 124.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Summary Card
-            item(key = "goal_summary_card") {
-                AlcanciaCard(modifier = Modifier.fillMaxWidth()) {
+
+                Text(
+                    text = goal.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.t1,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 4.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Pin Button
+                IconButton(onClick = onTogglePin, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.PushPin,
+                        contentDescription = "Fijar",
+                        tint = if (isPinned) palette.ahorro else palette.t2,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .rotate(45f)
+                    )
+                }
+
+                // Edit Button
+                IconButton(onClick = onEditGoal, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Editar",
+                        tint = palette.t2,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Delete Button (soft red)
+                IconButton(onClick = onDeleteGoal, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar",
+                        tint = palette.gasto,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Scrollable Content (C4: contentPadding inferior 124dp)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 124.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Large Donut Hero Section
+                item(key = "detail_hero") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
+                            .padding(vertical = 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(savingsColor.copy(alpha = 0.16f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = goal.emoji, fontSize = 32.sp)
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = CurrencyUtils.formatAmount(goalWithProgress.savedAmount, currencySymbol),
-                            style = MaterialTheme.typography.displayMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = numberFont
-                            ),
-                            color = savingsColor
+                        // Large Donut Ring (110dp, stroke 10dp, C3: color ahorro)
+                        GoalDonutRing(
+                            progress = goalWithProgress.progress,
+                            size = 110.dp,
+                            strokeWidth = 10.dp,
+                            percentageFontSize = 22.sp,
+                            trackColor = palette.s3,
+                            progressColor = palette.ahorro,
+                            textColor = palette.t1
                         )
-
-                        Text(
-                            text = "Meta objetivo: ${CurrencyUtils.formatAmount(goal.targetAmount, currencySymbol)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        if (goal.deadlineDateMillis != null) {
-                            val deadlineStr = SimpleDateFormat("d 'de' MMMM, yyyy", Locale("es", "MX")).format(Date(goal.deadlineDateMillis))
-                            Text(
-                                text = "Fecha límite: $deadlineStr",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Progress bar
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(10.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        // Amount (e.g. $2,040)
+                        Text(
+                            text = CurrencyUtils.formatCompact(saved, currencySymbol),
+                            fontSize = 38.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = numberFont,
+                            color = palette.t1
+                        )
+
+                        // Subtitle
+                        Text(
+                            text = "de ${CurrencyUtils.formatCompact(target, currencySymbol)} objetivo",
+                            fontSize = 14.sp,
+                            color = palette.t2,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Pill (Faltan $2,960)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = palette.s2,
+                            border = BorderStroke(1.dp, palette.s3)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(goalWithProgress.progress.coerceAtLeast(0.02f))
-                                    .height(10.dp)
-                                    .clip(RoundedCornerShape(5.dp))
-                                    .background(if (goalWithProgress.isCompleted) MaterialTheme.colorScheme.primary else savingsColor)
+                            Text(
+                                text = if (goalWithProgress.isCompleted) "Meta cumplida 🎉" else "Faltan ${CurrencyUtils.formatCompact(remaining, currencySymbol)}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = palette.ahorro,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
+                        // + Aportar and - Retirar Buttons
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                text = "${(goalWithProgress.progress * 100).toInt()}% completado",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = savingsColor
-                            )
-                            if (goalWithProgress.isCompleted) {
-                                Text(
-                                    text = "¡Meta cumplida! 🎉",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onOpenKeypad(false)
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                color = palette.s2
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "+ Aportar",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = palette.t1
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onOpenKeypad(true)
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                color = palette.s2
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "− Retirar",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = palette.t1
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Big Action Buttons: Aportar & Retirar
-            item(key = "goal_action_buttons") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            contributionIsWithdrawal = false
-                            showContributionSheet = true
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(52.dp),
-                        shape = RoundedCornerShape(22.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = savingsColor)
-                    ) {
-                        Text("Aportar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            contributionIsWithdrawal = true
-                            showContributionSheet = true
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(52.dp),
-                        shape = RoundedCornerShape(22.dp)
-                    ) {
-                        Text("Retirar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            // History Header
-            item(key = "history_header") {
-                Text(
-                    text = "Historial de aportes y retiros",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            if (transactions.isEmpty()) {
-                item(key = "empty_history") {
+                // Section Header: HISTORIAL
+                item(key = "historial_header") {
                     Text(
-                        text = "Aún no hay movimientos en esta meta. Toca \"Aportar\" para comenzar a ahorrar.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 12.dp)
+                        text = "HISTORIAL",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.t2,
+                        letterSpacing = 1.4.sp,
+                        modifier = Modifier.padding(top = 8.dp, start = 2.dp)
                     )
                 }
-            } else {
-                items(items = transactions, key = { it.id }) { tx ->
-                    val isWithdraw = tx.type == "SAVING_WITHDRAW"
-                    val dateStr = SimpleDateFormat("d 'de' MMMM yyyy", Locale("es", "MX")).format(Date(tx.dateMillis))
 
-                    AlcanciaCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    contextMenuTx = tx
-                                },
-                                onLongClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    contextMenuTx = tx
-                                }
+                // Transactions List
+                if (transactions.isEmpty()) {
+                    item(key = "historial_empty") {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = palette.s1,
+                            border = BorderStroke(1.dp, palette.s3)
+                        ) {
+                            Text(
+                                text = "Sin aportes registrados aún.",
+                                fontSize = 13.sp,
+                                color = palette.t2,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(24.dp)
                             )
-                    ) {
-                        Row(
+                        }
+                    }
+                } else {
+                    val dateFormat = SimpleDateFormat("d MMM yyyy", Locale("es", "MX"))
+                    items(transactions, key = { it.id }) { tx ->
+                        val isWithdraw = tx.type == "SAVING_WITHDRAW"
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    txToEdit = tx
+                                },
+                            shape = RoundedCornerShape(16.dp),
+                            color = palette.s1,
+                            border = BorderStroke(1.dp, palette.s3)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (isWithdraw) "Retiro de ahorro" else "Aporte a meta",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isWithdraw) expenseColor else savingsColor
-                                )
-                                if (tx.note.isNotBlank()) {
-                                    Text(
-                                        text = tx.note,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // Icon Circle
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isWithdraw) palette.gasto.copy(alpha = 0.2f) else palette.ahorro.copy(alpha = 0.2f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isWithdraw) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                                            contentDescription = null,
+                                            tint = if (isWithdraw) palette.gasto else palette.ahorro,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    Column {
+                                        val displayTitle = if (tx.note.isNotBlank() && !tx.note.startsWith("Aporte a") && !tx.note.startsWith("Retiro de")) {
+                                            tx.note
+                                        } else {
+                                            if (isWithdraw) "Retiro" else "Aporte"
+                                        }
+
+                                        Text(
+                                            text = displayTitle,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = palette.t1
+                                        )
+
+                                        Text(
+                                            text = dateFormat.format(Date(tx.dateMillis)),
+                                            fontSize = 12.sp,
+                                            color = palette.t2
+                                        )
+                                    }
                                 }
+
                                 Text(
-                                    text = dateStr,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = "${if (isWithdraw) "-" else "+"}${CurrencyUtils.formatAmount(tx.amount, currencySymbol)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = numberFont,
+                                    color = if (isWithdraw) palette.gasto else palette.t1
                                 )
                             }
-
-                            Text(
-                                text = "${if (isWithdraw) "-" else "+"}${CurrencyUtils.formatAmount(tx.amount, currencySymbol)}",
-                                style = MaterialTheme.typography.titleMedium.copy(fontFamily = numberFont),
-                                fontWeight = FontWeight.Bold,
-                                color = if (isWithdraw) expenseColor else savingsColor
-                            )
                         }
                     }
                 }
@@ -935,70 +1401,51 @@ private fun GoalDetailView(
         }
     }
 
-    // Modal to contribute or withdraw
-    if (showContributionSheet) {
-        ContributionBottomSheet(
-            isWithdrawal = contributionIsWithdrawal,
-            goalName = goal.name,
-            currencySymbol = currencySymbol,
-            onDismiss = { showContributionSheet = false },
-            onSave = { amount, note, dateMillis ->
-                onAddContribution(contributionIsWithdrawal, amount, note, dateMillis)
-                showContributionSheet = false
-            }
-        )
-    }
-
-    // Transaction Context Menu (Edit / Delete)
-    if (contextMenuTx != null) {
-        val tx = contextMenuTx!!
-        val isWithdraw = tx.type == "SAVING_WITHDRAW"
+    // Edit Transaction Dialog
+    if (txToEdit != null) {
+        val target = txToEdit!!
+        val isWithdraw = target.type == "SAVING_WITHDRAW"
         AlertDialog(
-            onDismissRequest = { contextMenuTx = null },
+            onDismissRequest = { txToEdit = null },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
             title = {
                 Text(
-                    text = "${if (isWithdraw) "Retiro" else "Aporte"} • ${CurrencyUtils.formatAmount(tx.amount, currencySymbol)}",
+                    text = "${if (isWithdraw) "Retiro" else "Aporte"} • ${CurrencyUtils.formatAmount(target.amount, currencySymbol)}",
                     fontWeight = FontWeight.Bold
                 )
             },
-            text = { Text("Selecciona qué deseas hacer con este movimiento.") },
+            text = { Text("¿Deseas eliminar este registro del historial?") },
             confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = {
-                        val target = tx
-                        contextMenuTx = null
-                        txToEdit = target
-                    }) {
-                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Editar")
-                    }
-
-                    Button(
-                        onClick = {
-                            val target = tx
-                            contextMenuTx = null
-                            txToDelete = target
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = expenseColor)
-                    ) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Borrar", color = Color.White)
-                    }
+                Button(
+                    onClick = {
+                        txToDelete = target
+                        txToEdit = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.gasto)
+                ) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Borrar", color = Color.White)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { contextMenuTx = null }) { Text("Cancelar") }
+                TextButton(onClick = { txToEdit = null }) {
+                    Text("Cerrar", color = palette.t2)
+                }
             }
         )
     }
 
-    // Delete confirmation
+    // Delete Transaction Dialog
     if (txToDelete != null) {
         val target = txToDelete!!
         AlertDialog(
             onDismissRequest = { txToDelete = null },
+            containerColor = palette.s1,
+            titleContentColor = palette.t1,
+            textContentColor = palette.t2,
             title = { Text("¿Borrar este movimiento?") },
             text = { Text("Se eliminará del historial y el saldo disponible se ajustará correspondientemente.") },
             confirmButton = {
@@ -1007,121 +1454,261 @@ private fun GoalDetailView(
                         onDeleteTransaction(target)
                         txToDelete = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = expenseColor)
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.gasto)
                 ) {
                     Text("Borrar", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
-            dismissButton = { TextButton(onClick = { txToDelete = null }) { Text("Cancelar") } }
-        )
-    }
-
-    // Edit transaction dialog
-    if (txToEdit != null) {
-        val target = txToEdit!!
-        EditContributionDialog(
-            tx = target,
-            currencySymbol = currencySymbol,
-            onDismiss = { txToEdit = null },
-            onSave = { newAmount, newNote, newDate ->
-                onUpdateTransaction(target, newAmount, newNote, newDate)
-                txToEdit = null
+            dismissButton = {
+                TextButton(onClick = { txToDelete = null }) {
+                    Text("Cancelar", color = palette.t2)
+                }
             }
         )
     }
 }
 
+// Modal Sheet: Aportar / Retirar Keypad (C2: Botón brand #5D7396 con onBrand, sin estado deshabilitado)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ContributionBottomSheet(
-    isWithdrawal: Boolean,
-    goalName: String,
+private fun GoalKeypadBottomSheet(
+    goalWithProgress: GoalWithProgress,
+    initialIsWithdrawal: Boolean,
     currencySymbol: String,
+    palette: InicioPalette.Colors,
     onDismiss: () -> Unit,
-    onSave: (amount: Double, note: String, dateMillis: Long) -> Unit
+    onConfirm: (isWithdrawal: Boolean, amount: Double, note: String) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val context = LocalContext.current
-    val savingsColor = LocalSavingsColor.current
-    val expenseColor = LocalExpenseColor.current
+    val goal = goalWithProgress.goal
     val numberFont = LocalNumberFontFamily.current
+    val saved = goalWithProgress.savedAmount
+    val target = goal.targetAmount
+    val percentage = (goalWithProgress.progress.coerceIn(0f, 1f) * 100).toInt()
 
+    var isWithdrawal by remember { mutableStateOf(initialIsWithdrawal) }
     var amountString by remember { mutableStateOf("0") }
-    var noteText by remember { mutableStateOf(if (isWithdrawal) "Retiro de $goalName" else "Aporte a $goalName") }
-    var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var noteText by remember { mutableStateOf("") }
 
     val parsedAmount = amountString.toDoubleOrNull() ?: 0.0
+    val isWithdrawalExceeded = isWithdrawal && parsedAmount > saved
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = palette.s1,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(palette.s3)
+            )
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Title: Goal Name
             Text(
-                text = if (isWithdrawal) "Retirar de la meta" else "Aportar a la meta",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                text = goal.name,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.t1
             )
+
+            // Subtitle: % · $saved de $target
             Text(
-                text = if (isWithdrawal) "El dinero volverá a tu saldo disponible del mes" else "Se descontará de tu saldo disponible del mes",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "$percentage% · ${CurrencyUtils.formatCompact(saved, currencySymbol)} de ${CurrencyUtils.formatCompact(target, currencySymbol)}",
+                fontSize = 13.sp,
+                color = palette.t2,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Segmented Control Toggle: Aportar / Retirar
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = palette.s2,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(4.dp)
+                ) {
+                    // Aportar Tab
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isWithdrawal = false
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (!isWithdrawal) palette.s3 else Color.Transparent
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Aportar",
+                                fontSize = 14.sp,
+                                fontWeight = if (!isWithdrawal) FontWeight.Bold else FontWeight.Medium,
+                                color = if (!isWithdrawal) palette.t1 else palette.t2
+                            )
+                        }
+                    }
+
+                    // Retirar Tab
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isWithdrawal = true
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isWithdrawal) palette.s3 else Color.Transparent
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Retirar",
+                                fontSize = 14.sp,
+                                fontWeight = if (isWithdrawal) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isWithdrawal) palette.t1 else palette.t2
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Helper text
+            Text(
+                text = if (isWithdrawal) "Se devolverá a tu saldo del mes" else "Se descontará de tu saldo del mes",
+                fontSize = 13.sp,
+                color = palette.t2
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Big Amount Display (+$0 / -$0, C3: color ahorro #B9A6FF)
+            val displaySign = if (isWithdrawal) "−" else "+"
             Text(
-                text = "${if (isWithdrawal) "-" else "+"}$currencySymbol$amountString",
-                style = MaterialTheme.typography.displayLarge.copy(fontFamily = numberFont),
+                text = "$displaySign$currencySymbol$amountString",
+                fontSize = 44.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isWithdrawal) expenseColor else savingsColor,
+                fontFamily = numberFont,
+                color = if (isWithdrawalExceeded) palette.gasto else palette.ahorro,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Keypad
+            if (isWithdrawalExceeded) {
+                Text(
+                    text = "El retiro supera el saldo ahorrado (${CurrencyUtils.formatCompact(saved, currencySymbol)})",
+                    fontSize = 12.sp,
+                    color = palette.gasto,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3x4 Custom Numeric Keypad
+            val keyRows = listOf(
+                listOf("1", "2", "3"),
+                listOf("4", "5", "6"),
+                listOf("7", "8", "9"),
+                listOf(".", "0", "DEL")
+            )
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val keys = listOf(
-                    listOf("1", "2", "3"),
-                    listOf("4", "5", "6"),
-                    listOf("7", "8", "9"),
-                    listOf(".", "0", "DEL")
-                )
-
-                for (row in keys) {
+                for (row in keyRows) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         for (key in row) {
-                            Box(
+                            Surface(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
+                                    .height(52.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         when (key) {
-                                            "DEL" -> amountString = if (amountString.length > 1) amountString.dropLast(1) else "0"
-                                            "." -> if (!amountString.contains(".")) amountString += "."
+                                            "DEL" -> {
+                                                if (amountString.length > 1) {
+                                                    amountString = amountString.dropLast(1)
+                                                } else {
+                                                    amountString = "0"
+                                                }
+                                            }
+                                            "." -> {
+                                                if (!amountString.contains(".")) {
+                                                    amountString += "."
+                                                }
+                                            }
                                             else -> {
-                                                if (amountString == "0") amountString = key
-                                                else if (amountString.length < 9) amountString += key
+                                                if (amountString == "0") {
+                                                    amountString = key
+                                                } else {
+                                                    val dotIdx = amountString.indexOf('.')
+                                                    if (dotIdx == -1 || amountString.length - dotIdx <= 2) {
+                                                        if (amountString.length < 9) {
+                                                            amountString += key
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     },
-                                contentAlignment = Alignment.Center
+                                shape = RoundedCornerShape(16.dp),
+                                color = palette.s2
                             ) {
-                                Text(text = key, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (key == "DEL") {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
+                                            contentDescription = "Borrar",
+                                            tint = palette.t1,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = key,
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = palette.t1
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1130,94 +1717,119 @@ private fun ContributionBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Note Field (Optional)
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
-                label = { Text("Nota (opcional)") },
+                placeholder = {
+                    Text("Nota (opcional)", color = palette.t2, fontSize = 14.sp)
+                },
+                singleLine = true,
                 shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = palette.t1,
+                    unfocusedTextColor = palette.t1,
+                    focusedContainerColor = palette.s2,
+                    unfocusedContainerColor = palette.s2,
+                    focusedBorderColor = palette.brand,
+                    unfocusedBorderColor = palette.s3
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
+            // Confirm Button (C2: fondo brand #5D7396, texto onBrand #FFFFFF; si parsedAmount == 0 no hace nada, sin deshabilitar)
             Button(
                 onClick = {
-                    if (parsedAmount > 0.0) {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSave(parsedAmount, noteText, selectedDateMillis)
+                    if (parsedAmount <= 0.0 || isWithdrawalExceeded) return@Button
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val note = if (noteText.isBlank()) {
+                        if (isWithdrawal) "Retiro de ${goal.name}" else "Aporte a ${goal.name}"
+                    } else {
+                        noteText.trim()
                     }
+                    onConfirm(isWithdrawal, parsedAmount, note)
                 },
-                enabled = parsedAmount > 0.0,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(26.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = if (isWithdrawal) expenseColor else savingsColor)
+                    .height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.brand,
+                    contentColor = palette.onBrand
+                )
             ) {
                 Text(
                     text = if (isWithdrawal) "Confirmar retiro" else "Confirmar aporte",
-                    style = MaterialTheme.typography.titleMedium,
+                    color = palette.onBrand,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    fontSize = 15.sp
                 )
             }
         }
     }
 }
 
+// Goal Editor Dialog (Create / Edit)
 @Composable
 private fun GoalEditorDialog(
-    goal: GoalEntity?,
+    goalToEdit: GoalEntity?,
     currencySymbol: String,
+    palette: InicioPalette.Colors,
     onDismiss: () -> Unit,
-    onSave: (name: String, emoji: String, target: Double, deadline: Long?) -> Unit
+    onSave: (name: String, emoji: String, targetAmount: Double, deadlineDateMillis: Long?) -> Unit
 ) {
-    var name by remember { mutableStateOf(goal?.name ?: "") }
-    var emoji by remember { mutableStateOf(goal?.emoji ?: "🎯") }
-    var targetStr by remember {
-        val t = goal?.targetAmount
-        mutableStateOf(if (t != null && t > 0) t.toInt().toString() else "")
-    }
-    var deadlineDateMillis by remember { mutableStateOf(goal?.deadlineDateMillis) }
-
-    val emojis = listOf("🎯", "🚗", "🏠", "✈️", "💻", "💍", "🎓", "🏖️", "📱", "🎁", "🛡️", "🐷")
     val context = LocalContext.current
+    var name by remember { mutableStateOf(goalToEdit?.name ?: "") }
+    var emoji by remember { mutableStateOf(goalToEdit?.emoji ?: "🎯") }
+    var targetStr by remember { mutableStateOf(if (goalToEdit != null) goalToEdit.targetAmount.toString() else "") }
+    var deadlineDateMillis by remember { mutableStateOf(goalToEdit?.deadlineDateMillis) }
 
+    val emojis = listOf("🎯", "🏖️", "💻", "🚗", "🏠", "💍", "🎓", "📱", "✈️", "💰", "🎮", "🚴")
     val targetVal = targetStr.toDoubleOrNull() ?: 0.0
-    val now = System.currentTimeMillis()
-
-    // Automatic calculation of monthly recommended savings
-    val recMonthlyText: String? = remember(targetVal, deadlineDateMillis) {
-        if (deadlineDateMillis != null && deadlineDateMillis!! > now && targetVal > 0.0) {
-            val diff = deadlineDateMillis!! - now
-            val months = (diff / (1000L * 60 * 60 * 24 * 30.416)).coerceAtLeast(1.0)
-            val monthly = targetVal / months
-            "Ahorra aprox. ${CurrencyUtils.formatAmount(monthly, currencySymbol)} al mes para llegar a tiempo"
-        } else {
-            null
-        }
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (goal != null) "Editar meta" else "Nueva meta", fontWeight = FontWeight.Bold) },
+        containerColor = palette.s1,
+        titleContentColor = palette.t1,
+        textContentColor = palette.t2,
+        title = {
+            Text(
+                text = if (goalToEdit != null) "Editar meta" else "Nueva meta",
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Name Field
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nombre de la meta") },
-                    placeholder = { Text("Ej. Viaje a Japón, Auto nuevo...") },
-                    shape = RoundedCornerShape(16.dp),
+                    label = { Text("Nombre de la meta", color = palette.t2) },
+                    placeholder = { Text("Ej. Viaje, Laptop...", color = palette.t2.copy(alpha = 0.6f)) },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("Icono", style = MaterialTheme.typography.labelMedium)
+                // Emoji Row
+                Text(
+                    text = "Icono",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = palette.t2
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1228,9 +1840,9 @@ private fun GoalEditorDialog(
                         val isSelected = emoji == e
                         Box(
                             modifier = Modifier
-                                .size(42.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
-                                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                                .background(if (isSelected) palette.s3 else palette.s2)
                                 .clickable { emoji = e },
                             contentAlignment = Alignment.Center
                         ) {
@@ -1239,27 +1851,39 @@ private fun GoalEditorDialog(
                     }
                 }
 
+                // Target Amount Field
                 OutlinedTextField(
                     value = targetStr,
                     onValueChange = { targetStr = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                    label = { Text("Monto objetivo ($currencySymbol)") },
-                    placeholder = { Text("Ej. 25000") },
-                    shape = RoundedCornerShape(16.dp),
+                    label = { Text("Monto objetivo ($currencySymbol)", color = palette.t2) },
+                    placeholder = { Text("Ej. 5000", color = palette.t2.copy(alpha = 0.6f)) },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.t1,
+                        unfocusedTextColor = palette.t1,
+                        focusedBorderColor = palette.brand,
+                        unfocusedBorderColor = palette.s3
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Fecha límite opcional
+                // Optional Deadline Date
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Fecha límite (opcional)", style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        text = "Fecha límite (opcional)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = palette.t2
+                    )
                     if (deadlineDateMillis != null) {
                         Text(
                             text = "Quitar",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            color = palette.brand,
                             modifier = Modifier.clickable { deadlineDateMillis = null }
                         )
                     }
@@ -1282,33 +1906,22 @@ private fun GoalEditorDialog(
                             cal.get(Calendar.DAY_OF_MONTH)
                         ).show()
                     },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(imageVector = Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = null,
+                        tint = palette.brand,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     val label = if (deadlineDateMillis != null) {
                         SimpleDateFormat("d 'de' MMMM, yyyy", Locale("es", "MX")).format(Date(deadlineDateMillis!!))
                     } else {
                         "Seleccionar fecha límite"
                     }
-                    Text(label)
-                }
-
-                if (recMonthlyText != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "💡 $recMonthlyText",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(10.dp)
-                        )
-                    }
+                    Text(label, color = palette.t1)
                 }
             }
         },
@@ -1320,59 +1933,19 @@ private fun GoalEditorDialog(
                     }
                 },
                 enabled = name.isNotBlank() && targetVal > 0.0,
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.brand,
+                    disabledContainerColor = palette.s3
+                )
             ) {
-                Text("Guardar meta", fontWeight = FontWeight.Bold)
+                Text("Guardar", fontWeight = FontWeight.Bold, color = palette.onBrand)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = palette.t2)
+            }
         }
-    )
-}
-
-@Composable
-private fun EditContributionDialog(
-    tx: TransactionEntity,
-    currencySymbol: String,
-    onDismiss: () -> Unit,
-    onSave: (amount: Double, note: String, dateMillis: Long) -> Unit
-) {
-    var amountStr by remember { mutableStateOf(tx.amount.toString()) }
-    var note by remember { mutableStateOf(tx.note) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Editar movimiento") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = amountStr,
-                    onValueChange = { amountStr = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                    label = { Text("Monto ($currencySymbol)") },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("Nota") },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amt = amountStr.toDoubleOrNull() ?: tx.amount
-                    onSave(amt, note, tx.dateMillis)
-                },
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text("Guardar")
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }

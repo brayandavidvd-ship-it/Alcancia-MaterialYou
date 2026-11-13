@@ -8,7 +8,6 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.AppDatabase
@@ -35,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -138,6 +138,28 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
 
     private val _isGoalsGridView = MutableStateFlow(prefs.getBoolean("goals_grid_view", false))
     val isGoalsGridView: StateFlow<Boolean> = _isGoalsGridView.asStateFlow()
+
+    // Pinned Goal state (persisted in alcancia_ui_prefs, shared reactively between Metas and Inicio)
+    private val _pinnedGoalId = MutableStateFlow(prefs.getLong("pinned_goal_id", -1L))
+    val pinnedGoalId: StateFlow<Long> = _pinnedGoalId.asStateFlow()
+
+    fun togglePinGoal(goalId: Long) {
+        val next = if (_pinnedGoalId.value == goalId) -1L else goalId
+        _pinnedGoalId.value = next
+        if (next == -1L) {
+            prefs.edit().remove("pinned_goal_id").apply()
+        } else {
+            prefs.edit().putLong("pinned_goal_id", next).apply()
+        }
+        vibrateDevice()
+    }
+
+    fun clearPinnedGoalIfMatches(goalId: Long) {
+        if (_pinnedGoalId.value == goalId) {
+            _pinnedGoalId.value = -1L
+            prefs.edit().remove("pinned_goal_id").apply()
+        }
+    }
 
     fun toggleGoalsViewMode() {
         val next = !_isGoalsGridView.value
@@ -553,6 +575,7 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
 
     fun deleteGoal(goal: GoalEntity) {
         viewModelScope.launch {
+            clearPinnedGoalIfMatches(goal.id)
             financeRepository.deleteGoal(goal)
             vibrateDevice()
         }
@@ -568,7 +591,27 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
             initialValue = emptyList()
         )
 
-    val productSuggestions: StateFlow<List<String>> = shoppingRepository.allProductSuggestions
+    val shoppingListItemCountsState: StateFlow<Map<Long, Int>> = shoppingRepository.allItems
+        .map { items -> items.groupingBy { it.listId }.eachCount() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+
+    val productSuggestions: StateFlow<List<String>> = shoppingRepository.allItems
+        .map { items ->
+            val seen = HashSet<String>()
+            val result = mutableListOf<String>()
+            for (item in items) {
+                val trimmed = item.name.trim()
+                val key = trimmed.lowercase(Locale.ROOT)
+                if (trimmed.isNotEmpty() && seen.add(key)) {
+                    result.add(trimmed)
+                }
+            }
+            result
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -629,7 +672,8 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             shoppingRepository.deleteShoppingList(list)
             if (_selectedListId.value == list.id) {
-                _selectedListId.value = null
+                val remaining = shoppingRepository.getAllListsSync().sortedByDescending { it.createdAt }
+                _selectedListId.value = remaining.firstOrNull()?.id
             }
             vibrateDevice()
         }
@@ -865,6 +909,22 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
     }
 
     // Reminders
+    private val _reminderCustomMessage = MutableStateFlow(
+        com.example.util.ReminderHelper.getReminderMessage(application)
+    )
+    val reminderCustomMessage: StateFlow<String> = _reminderCustomMessage.asStateFlow()
+
+    fun updateReminderCustomMessage(message: String) {
+        _reminderCustomMessage.value = message
+        com.example.util.ReminderHelper.setReminderMessage(getApplication<Application>(), message)
+    }
+
+    fun resetReminderCustomMessage() {
+        val defaultMsg = com.example.util.ReminderHelper.resetReminderMessage(getApplication<Application>())
+        _reminderCustomMessage.value = defaultMsg
+        vibrateDevice()
+    }
+
     fun setRemindersConfig(enabled: Boolean, time: String, frequency: String) {
         viewModelScope.launch {
             settingsRepository.setRemindersConfig(enabled, time, frequency)
@@ -883,43 +943,6 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             settingsRepository.setHapticLevel(level)
             vibrateDevice(level)
-        }
-    }
-
-    // Local AI (Ollama)
-    fun setLocalAiConfig(enabled: Boolean, serverUrl: String, model: String) {
-        viewModelScope.launch {
-            settingsRepository.setLocalAiConfig(enabled, serverUrl, model)
-            vibrateDevice()
-        }
-    }
-
-    fun testOllamaConnection(serverUrl: String, onResult: (Result<List<String>>) -> Unit) {
-        viewModelScope.launch {
-            val result = com.example.data.service.OllamaService.testConnection(serverUrl)
-            onResult(result)
-        }
-    }
-
-    fun suggestCategoryWithOllama(
-        description: String,
-        categories: List<CategoryEntity>,
-        onResult: (CategoryEntity?) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            val settings = settingsState.value
-            val result = com.example.data.service.OllamaService.suggestCategory(
-                serverUrl = settings.localAiServerUrl,
-                model = settings.localAiModel,
-                description = description,
-                categories = categories
-            )
-            result.onSuccess { category ->
-                onResult(category)
-            }.onFailure { err ->
-                onError(err.message ?: "No se pudo conectar con la IA local")
-            }
         }
     }
 
@@ -972,15 +995,18 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
         val pendingMsg = _chatMessages.value.firstOrNull { it.actionProposal?.status == ActionStatus.PENDING }
         if (pendingMsg != null && pendingMsg.actionProposal != null) {
             updateProposalStatus(pendingMsg.actionProposal.id, ActionStatus.CANCELLED, "Cancelado")
-            val pendingCalls = pendingMsg.actionProposal.allCalls.ifEmpty {
-                listOf(GeminiFunctionCallItem(pendingMsg.actionProposal.toolName, pendingMsg.actionProposal.arguments, false))
+            if (pendingMsg.actionProposal.hasPendingApiFunctionCall) {
+                val pendingCalls = pendingMsg.actionProposal.allCalls.ifEmpty {
+                    listOf(GeminiFunctionCallItem(pendingMsg.actionProposal.toolName, pendingMsg.actionProposal.arguments, false))
+                }
+                val cancelParts = pendingCalls.map {
+                    GeminiHistorySanitizer.createCancelledResponse(it.name, "cancelado_por_el_usuario")
+                }
+                apiHistory.add(GeminiMessage(role = "user", parts = cancelParts))
+                apiHistory.add(GeminiMessage(role = "model", parts = listOf(JSONObject().put("text", "Entendido, acción cancelada."))))
             }
-            val cancelParts = pendingCalls.map {
-                GeminiHistorySanitizer.createCancelledResponse(it.name, "cancelado_por_el_usuario")
-            }
-            apiHistory.add(GeminiMessage(role = "user", parts = cancelParts))
-            apiHistory.add(GeminiMessage(role = "model", parts = listOf(JSONObject().put("text", "Entendido, acción cancelada."))))
         }
+        shoppingPriceState = ShoppingPriceState.Idle
         val sanitized = GeminiHistorySanitizer.sanitize(apiHistory)
         apiHistory.clear()
         apiHistory.addAll(sanitized)
@@ -1003,6 +1029,7 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
     // API-only Content history (list B) - NEVER reconstructed from UI messages
     private val apiHistory = mutableListOf<GeminiMessage>()
     private var chatJob: Job? = null
+    private var shoppingPriceState: ShoppingPriceState = ShoppingPriceState.Idle
 
     fun stopGeneration() {
         chatJob?.cancel()
@@ -1019,6 +1046,7 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
         chatJob = null
         _chatMessages.value = emptyList()
         apiHistory.clear()
+        shoppingPriceState = ShoppingPriceState.Idle
         _chatErrorMessage.value = null
         _chatErrorDetail.value = null
         _isChatTyping.value = false
@@ -1056,6 +1084,8 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
         val lastUserIdx = msgs.indexOfLast { it.sender == MessageSender.USER }
         if (lastUserIdx == -1) return
 
+        shoppingPriceState = ShoppingPriceState.Idle
+
         // Prune UI messages to the last user message
         _chatMessages.value = msgs.take(lastUserIdx + 1)
         _chatErrorMessage.value = null
@@ -1090,14 +1120,16 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
         val pendingMsg = _chatMessages.value.firstOrNull { it.actionProposal?.status == ActionStatus.PENDING }
         if (pendingMsg != null && pendingMsg.actionProposal != null) {
             updateProposalStatus(pendingMsg.actionProposal.id, ActionStatus.CANCELLED, "Cancelado")
-            val pendingCalls = pendingMsg.actionProposal.allCalls.ifEmpty {
-                listOf(GeminiFunctionCallItem(pendingMsg.actionProposal.toolName, pendingMsg.actionProposal.arguments, false))
+            if (pendingMsg.actionProposal.hasPendingApiFunctionCall) {
+                val pendingCalls = pendingMsg.actionProposal.allCalls.ifEmpty {
+                    listOf(GeminiFunctionCallItem(pendingMsg.actionProposal.toolName, pendingMsg.actionProposal.arguments, false))
+                }
+                val cancelParts = pendingCalls.map {
+                    GeminiHistorySanitizer.createCancelledResponse(it.name, "cancelado_por_el_usuario")
+                }
+                apiHistory.add(GeminiMessage(role = "user", parts = cancelParts))
+                apiHistory.add(GeminiMessage(role = "model", parts = listOf(JSONObject().put("text", "Entendido, acción cancelada."))))
             }
-            val cancelParts = pendingCalls.map {
-                GeminiHistorySanitizer.createCancelledResponse(it.name, "cancelado_por_el_usuario")
-            }
-            apiHistory.add(GeminiMessage(role = "user", parts = cancelParts))
-            apiHistory.add(GeminiMessage(role = "model", parts = listOf(JSONObject().put("text", "Entendido, acción cancelada."))))
         }
 
         val userMsg = ChatMessage(sender = MessageSender.USER, text = trimmed)
@@ -1110,6 +1142,39 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
             parts = listOf(JSONObject().put("text", trimmed))
         )
         apiHistory.add(geminiUserMsg)
+
+        // State machine: if awaiting missing shopping item price(s), resolve deterministically first
+        val currentPriceState = shoppingPriceState
+        if (currentPriceState is ShoppingPriceState.AwaitingPrices) {
+            val currency = settingsState.value.currencySymbol
+            val resolved = ShoppingAssistantStateMachine.tryResolvePrices(currentPriceState, trimmed, currency)
+            shoppingPriceState = ShoppingPriceState.Idle
+            if (resolved != null) {
+                val firstCall = resolved.calls.first()
+                val proposal = ChatActionProposal(
+                    id = "prop_${System.currentTimeMillis()}",
+                    toolName = firstCall.name,
+                    summary = resolved.summary,
+                    isDestructive = false,
+                    arguments = firstCall.arguments,
+                    status = ActionStatus.PENDING,
+                    allCalls = resolved.calls,
+                    hasPendingApiFunctionCall = false
+                )
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    sender = MessageSender.ASSISTANT,
+                    text = "",
+                    actionProposal = proposal
+                )
+                apiHistory.add(
+                    GeminiMessage(
+                        role = "model",
+                        parts = listOf(JSONObject().put("text", resolved.summary))
+                    )
+                )
+                return
+            }
+        }
 
         runGeminiChatTurn(isRetry = false)
     }
@@ -1193,18 +1258,85 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                         )
                     }
                     is GeminiTurnResult.ActionProposalCall -> {
+                        val interception = ShoppingAssistantStateMachine.inspectShoppingActionCalls(result.allCalls)
+                        if (interception != null) {
+                            // Close Gemini functionCall turn cleanly and ask for missing price(s) in text only
+                            apiHistory.add(
+                                GeminiMessage(
+                                    role = "model",
+                                    parts = result.rawModelParts
+                                )
+                            )
+                            val missingCalls = result.allCalls.ifEmpty {
+                                listOf(GeminiFunctionCallItem(result.toolName, result.arguments, false))
+                            }
+                            val pendingRespParts = missingCalls.map { call ->
+                                JSONObject().apply {
+                                    put("functionResponse", JSONObject().apply {
+                                        put("name", call.name)
+                                        put("response", JSONObject().apply {
+                                            put("status", "pendiente_precio_usuario")
+                                            put("mensaje", "Falta el precio explícito del usuario antes de confirmar.")
+                                        })
+                                    })
+                                }
+                            }
+                            apiHistory.add(GeminiMessage(role = "user", parts = pendingRespParts))
+                            apiHistory.add(
+                                GeminiMessage(
+                                    role = "model",
+                                    parts = listOf(JSONObject().put("text", interception.questionText))
+                                )
+                            )
+                            shoppingPriceState = interception.awaitingState
+                            _chatMessages.value = _chatMessages.value + ChatMessage(
+                                sender = MessageSender.ASSISTANT,
+                                text = interception.questionText
+                            )
+                            _isChatTyping.value = false
+                            return@launch
+                        }
+
+                        val enrichedCalls = result.allCalls.map { call ->
+                            if (call.name == "editar_producto_compra" || call.name == "eliminar_producto_compra") {
+                                val providedName = (call.arguments["nombreProducto"]
+                                    ?: call.arguments["productName"]
+                                    ?: call.arguments["nuevoNombre"])?.toString()?.trim().orEmpty()
+                                val needsLookup = providedName.isBlank() || providedName.equals("Producto", ignoreCase = true)
+                                val itemId = call.arguments["id"]?.toString()?.toLongOrNull()
+                                if (needsLookup && itemId != null) {
+                                    val dbItem = withContext(Dispatchers.IO) { database.shoppingDao().getItemById(itemId) }
+                                    if (dbItem != null && dbItem.name.isNotBlank()) {
+                                        call.copy(arguments = call.arguments + ("nombreProducto" to dbItem.name))
+                                    } else {
+                                        call
+                                    }
+                                } else if (providedName.isNotBlank() && call.arguments["nombreProducto"] == null) {
+                                    call.copy(arguments = call.arguments + ("nombreProducto" to providedName))
+                                } else {
+                                    call
+                                }
+                            } else {
+                                call
+                            }
+                        }
+                        val enrichedSummary = GeminiService.buildBatchActionSummary(enrichedCalls, currency)
+                            .ifBlank { result.summary }
+                        val enrichedFirstArgs = enrichedCalls.firstOrNull { !it.isQuery }?.arguments ?: result.arguments
+
                         val proposal = ChatActionProposal(
                             id = result.proposalId,
                             toolName = result.toolName,
-                            summary = result.summary,
+                            summary = enrichedSummary,
                             isDestructive = result.isDestructive,
-                            arguments = result.arguments,
+                            arguments = enrichedFirstArgs,
                             status = ActionStatus.PENDING,
-                            allCalls = result.allCalls
+                            allCalls = enrichedCalls,
+                            hasPendingApiFunctionCall = true
                         )
                         _chatMessages.value = _chatMessages.value + ChatMessage(
                             sender = MessageSender.ASSISTANT,
-                            text = "",
+                            text = result.assistantText,
                             actionProposal = proposal
                         )
 
@@ -1255,35 +1387,20 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
             updateProposalStatus(proposal.id, ActionStatus.EXECUTING, "Ejecutando acción...")
             vibrateDevice()
 
-            val result = executeActionTool(proposal.toolName, proposal.arguments)
-            val resultStatus = if (result.success) "ejecutado" else "error"
-            val resultMsg = if (result.success) "Acción ejecutada con éxito" else (result.errorMessage ?: "Ocurrió un error al ejecutar la acción")
-
-            updateProposalStatus(proposal.id, if (result.success) ActionStatus.CONFIRMED else ActionStatus.CANCELLED, resultMsg)
-
-            // Prepare functionResponses for all calls in that turn (Rule 2 & Rule 3)
             val calls = proposal.allCalls.ifEmpty {
                 listOf(GeminiFunctionCallItem(proposal.toolName, proposal.arguments, false))
             }
+
             val responseParts = mutableListOf<JSONObject>()
+            val addedItemsSummary = mutableListOf<String>()
+            val currency = settingsState.value.currencySymbol
+            var actionCount = 0
+            var successCount = 0
+            var lastError: String? = null
+            var createdShoppingListId: Long? = null
+
             for (call in calls) {
-                if (call.name == proposal.toolName) {
-                    val respObj = JSONObject().apply {
-                        put("status", resultStatus)
-                        put("mensaje", resultMsg)
-                        for ((k, v) in result.details) {
-                            put(k, v)
-                        }
-                    }
-                    responseParts.add(
-                        JSONObject().apply {
-                            put("functionResponse", JSONObject().apply {
-                                put("name", call.name)
-                                put("response", respObj)
-                            })
-                        }
-                    )
-                } else if (call.isQuery) {
+                if (call.isQuery) {
                     val qResult = executeQueryTool(call.name, call.arguments)
                     responseParts.add(
                         JSONObject().apply {
@@ -1296,18 +1413,97 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                         }
                     )
                 } else {
-                    responseParts.add(GeminiHistorySanitizer.createCancelledResponse(call.name, "cancelado_por_el_usuario"))
+                    actionCount++
+                    val effectiveArgs = if (
+                        call.name == "agregar_producto_compra" &&
+                        createdShoppingListId != null &&
+                        (call.arguments["listaId"]?.toString()?.toLongOrNull() ?: 0L) <= 0L
+                    ) {
+                        call.arguments + ("listaId" to createdShoppingListId)
+                    } else {
+                        call.arguments
+                    }
+
+                    val execResult = executeActionTool(call.name, effectiveArgs)
+                    if (execResult.success) {
+                        successCount++
+                        if (call.name == "crear_lista_compras") {
+                            createdShoppingListId = execResult.details["id"]?.toString()?.toLongOrNull()
+                        } else if (call.name == "agregar_producto_compra") {
+                            val prod = execResult.details["nombre"]?.toString()
+                                ?: effectiveArgs["nombreProducto"]?.toString()
+                                ?: "Producto"
+                            val qty = GeminiService.formatQuantity(execResult.details["cantidad"] ?: effectiveArgs["cantidad"])
+                            val price = (execResult.details["precio"] ?: effectiveArgs["precioEstimado"])
+                                ?.toString()?.toDoubleOrNull() ?: 0.0
+                            addedItemsSummary.add("• $qty x $prod — ${GeminiService.formatExactCurrency(price, currency)}")
+                        }
+                    } else if (lastError == null) {
+                        lastError = execResult.errorMessage
+                    }
+
+                    val resultStatus = if (execResult.success) "ejecutado" else "error"
+                    val resultMsg = if (execResult.success) {
+                        "Acción ejecutada con éxito"
+                    } else {
+                        execResult.errorMessage ?: "Ocurrió un error al ejecutar la acción"
+                    }
+
+                    val respObj = JSONObject().apply {
+                        put("status", resultStatus)
+                        put("mensaje", resultMsg)
+                        for ((k, v) in execResult.details) {
+                            put(k, v)
+                        }
+                    }
+                    responseParts.add(
+                        JSONObject().apply {
+                            put("functionResponse", JSONObject().apply {
+                                put("name", call.name)
+                                put("response", respObj)
+                            })
+                        }
+                    )
                 }
             }
 
-            apiHistory.add(
-                GeminiMessage(
-                    role = "user",
-                    parts = responseParts
-                )
-            )
+            val finalStatus = if (successCount > 0) ActionStatus.CONFIRMED else ActionStatus.CANCELLED
+            val finalMsg = when {
+                successCount == actionCount && actionCount > 1 -> "$successCount acciones ejecutadas con éxito"
+                successCount > 0 && successCount < actionCount -> "$successCount de $actionCount acciones ejecutadas"
+                successCount > 0 -> "Acción ejecutada con éxito"
+                else -> lastError ?: "Ocurrió un error al ejecutar la acción"
+            }
+            updateProposalStatus(proposal.id, finalStatus, finalMsg)
 
-            runGeminiChatTurn(isRetry = false)
+            if (proposal.hasPendingApiFunctionCall) {
+                apiHistory.add(
+                    GeminiMessage(
+                        role = "user",
+                        parts = responseParts
+                    )
+                )
+                runGeminiChatTurn(isRetry = false)
+            } else {
+                val replyText = if (successCount > 0 && addedItemsSummary.isNotEmpty()) {
+                    if (addedItemsSummary.size == 1) {
+                        "Listo, agregué a tu lista de compras:\n${addedItemsSummary.first()}"
+                    } else {
+                        "Listo, agregué los ${addedItemsSummary.size} productos a tu lista de compras:\n" +
+                            addedItemsSummary.joinToString("\n")
+                    }
+                } else if (successCount > 0) {
+                    "Listo, $finalMsg."
+                } else {
+                    lastError ?: "No se pudo completar la acción."
+                }
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    sender = MessageSender.ASSISTANT,
+                    text = replyText
+                )
+                apiHistory.add(GeminiMessage(role = "user", parts = listOf(JSONObject().put("text", "Confirmar"))))
+                apiHistory.add(GeminiMessage(role = "model", parts = listOf(JSONObject().put("text", replyText))))
+            }
         }
     }
 
@@ -1316,21 +1512,31 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
             updateProposalStatus(proposal.id, ActionStatus.CANCELLED, "Cancelado")
             vibrateDevice()
 
-            val calls = proposal.allCalls.ifEmpty {
-                listOf(GeminiFunctionCallItem(proposal.toolName, proposal.arguments, false))
-            }
-            val responseParts = calls.map {
-                GeminiHistorySanitizer.createCancelledResponse(it.name, "cancelado_por_el_usuario")
-            }
+            if (proposal.hasPendingApiFunctionCall) {
+                val calls = proposal.allCalls.ifEmpty {
+                    listOf(GeminiFunctionCallItem(proposal.toolName, proposal.arguments, false))
+                }
+                val responseParts = calls.map {
+                    GeminiHistorySanitizer.createCancelledResponse(it.name, "cancelado_por_el_usuario")
+                }
 
-            apiHistory.add(
-                GeminiMessage(
-                    role = "user",
-                    parts = responseParts
+                apiHistory.add(
+                    GeminiMessage(
+                        role = "user",
+                        parts = responseParts
+                    )
                 )
-            )
 
-            runGeminiChatTurn(isRetry = false)
+                runGeminiChatTurn(isRetry = false)
+            } else {
+                val cancelText = "Entendido, acción cancelada."
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    sender = MessageSender.ASSISTANT,
+                    text = cancelText
+                )
+                apiHistory.add(GeminiMessage(role = "user", parts = listOf(JSONObject().put("text", "Cancelar"))))
+                apiHistory.add(GeminiMessage(role = "model", parts = listOf(JSONObject().put("text", cancelText))))
+            }
         }
     }
 
@@ -1339,7 +1545,6 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
             "consultar_movimientos" -> {
                 val mes = args["mes"]?.toString()?.toIntOrNull()
                 val anio = args["anio"]?.toString()?.toIntOrNull()
-                val categoria = args["categoria"]?.toString()?.takeIf { it.isNotBlank() }
                 val tipo = args["tipo"]?.toString()?.takeIf { it.isNotBlank() }
                 val limite = args["limite"]?.toString()?.toIntOrNull() ?: 20
 
@@ -1351,9 +1556,8 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                     val txAnio = cal.get(Calendar.YEAR)
                     val matchMes = mes == null || txMes == mes
                     val matchAnio = anio == null || txAnio == anio
-                    val matchCat = categoria == null || tx.categoryName.equals(categoria, ignoreCase = true)
                     val matchTipo = tipo == null || tx.type.equals(tipo, ignoreCase = true)
-                    matchMes && matchAnio && matchCat && matchTipo
+                    matchMes && matchAnio && matchTipo
                 }.take(limite)
 
                 val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -1364,7 +1568,6 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                         put("fecha", sdf.format(Date(tx.dateMillis)))
                         put("tipo", tx.type)
                         put("monto", tx.amount)
-                        put("categoria", tx.categoryName)
                         put("nota", tx.note)
                     })
                 }
@@ -1394,19 +1597,6 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                     put("totalGastos", exp)
                     put("balance", inc - exp)
                 }.toString()
-            }
-            "listar_categorias" -> {
-                val cats = database.categoryDao().getAllCategoriesList()
-                val arr = JSONArray()
-                for (c in cats) {
-                    arr.put(JSONObject().apply {
-                        put("id", c.id)
-                        put("nombre", c.name)
-                        put("emoji", c.emoji)
-                        put("limiteMensual", c.monthlyBudgetLimit)
-                    })
-                }
-                arr.toString()
             }
             "listar_metas" -> {
                 val goals = database.goalDao().getAllGoalsSync()
@@ -1469,13 +1659,7 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                     val monto = args["monto"]?.toString()?.toDoubleOrNull()
                         ?: return@withContext ToolExecutionResult(false, emptyMap(), "Monto no válido")
                     val nota = args["nota"]?.toString() ?: ""
-                    val catName = args["categoria"]?.toString()?.trim() ?: "General"
                     val fechaStr = args["fecha"]?.toString()?.trim()
-
-                    val cats = database.categoryDao().getAllCategoriesList()
-                    val matchedCat = cats.firstOrNull { it.name.equals(catName, ignoreCase = true) }
-                        ?: cats.firstOrNull()
-                        ?: CategoryEntity("general", "General", "🏷️", "#FF8A65", null, true, 0)
 
                     val dateMillis = if (!fechaStr.isNullOrBlank()) {
                         try {
@@ -1490,9 +1674,9 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                     val tx = TransactionEntity(
                         type = tipo,
                         amount = monto,
-                        categoryId = matchedCat.id,
-                        categoryName = matchedCat.name,
-                        categoryEmoji = matchedCat.emoji,
+                        categoryId = "",
+                        categoryName = "",
+                        categoryEmoji = "",
                         note = nota,
                         dateMillis = dateMillis
                     )
@@ -1504,7 +1688,6 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                             "id" to insertedId,
                             "tipo" to tipo,
                             "monto" to monto,
-                            "categoria" to matchedCat.name,
                             "nota" to nota,
                             "fecha" to sdf.format(dateMillis)
                         )
@@ -1517,29 +1700,14 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                         ?: return@withContext ToolExecutionResult(false, emptyMap(), "Movimiento no encontrado")
                     val monto = args["monto"]?.toString()?.toDoubleOrNull() ?: tx.amount
                     val nota = args["nota"]?.toString() ?: tx.note
-                    val catName = args["categoria"]?.toString()?.trim()
 
-                    var catId = tx.categoryId
-                    var catEmoji = tx.categoryEmoji
-                    var finalCatName = tx.categoryName
-                    if (!catName.isNullOrBlank()) {
-                        val cats = database.categoryDao().getAllCategoriesList()
-                        val matched = cats.firstOrNull { it.name.equals(catName, ignoreCase = true) }
-                        if (matched != null) {
-                            catId = matched.id
-                            finalCatName = matched.name
-                            catEmoji = matched.emoji
-                        }
-                    }
-
-                    val updated = tx.copy(amount = monto, note = nota, categoryId = catId, categoryName = finalCatName, categoryEmoji = catEmoji)
+                    val updated = tx.copy(amount = monto, note = nota)
                     database.transactionDao().updateTransaction(updated)
                     ToolExecutionResult(
                         success = true,
                         details = mapOf(
                             "id" to id,
                             "monto" to monto,
-                            "categoria" to finalCatName,
                             "nota" to nota
                         )
                     )
@@ -1549,42 +1717,6 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                         ?: return@withContext ToolExecutionResult(false, emptyMap(), "ID no válido")
                     database.transactionDao().deleteById(id)
                     ToolExecutionResult(success = true, details = mapOf("id" to id, "eliminado" to true))
-                }
-                "crear_categoria" -> {
-                    val nombre = args["nombre"]?.toString()?.trim()
-                        ?: return@withContext ToolExecutionResult(false, emptyMap(), "Nombre requerido")
-                    val emoji = args["icono"]?.toString()?.trim() ?: "🏷️"
-                    val id = "cat_" + System.currentTimeMillis()
-                    val cat = CategoryEntity(
-                        id = id,
-                        name = nombre,
-                        emoji = emoji,
-                        colorHex = "#FF8A65",
-                        monthlyBudgetLimit = null,
-                        isDefault = false,
-                        sortOrder = 99
-                    )
-                    database.categoryDao().insertCategory(cat)
-                    ToolExecutionResult(success = true, details = mapOf("id" to id, "nombre" to nombre, "icono" to emoji))
-                }
-                "editar_categoria" -> {
-                    val id = args["id"]?.toString()?.trim()
-                        ?: return@withContext ToolExecutionResult(false, emptyMap(), "ID no válido")
-                    val cats = database.categoryDao().getAllCategoriesList()
-                    val cat = cats.firstOrNull { it.id == id || it.name.equals(id, ignoreCase = true) }
-                        ?: return@withContext ToolExecutionResult(false, emptyMap(), "Categoría no encontrada")
-                    val nuevoNombre = args["nuevoNombre"]?.toString()?.trim() ?: cat.name
-                    database.categoryDao().updateCategory(cat.copy(name = nuevoNombre))
-                    ToolExecutionResult(success = true, details = mapOf("id" to cat.id, "nombre" to nuevoNombre))
-                }
-                "eliminar_categoria" -> {
-                    val id = args["id"]?.toString()?.trim()
-                        ?: return@withContext ToolExecutionResult(false, emptyMap(), "ID no válido")
-                    val cats = database.categoryDao().getAllCategoriesList()
-                    val cat = cats.firstOrNull { it.id == id || it.name.equals(id, ignoreCase = true) }
-                        ?: return@withContext ToolExecutionResult(false, emptyMap(), "Categoría no encontrada")
-                    database.categoryDao().deleteCategory(cat)
-                    ToolExecutionResult(success = true, details = mapOf("id" to cat.id, "nombre" to cat.name, "eliminado" to true))
                 }
                 "crear_lista_compras" -> {
                     val nombre = args["nombre"]?.toString()?.trim() ?: "Lista de compras"
@@ -1722,9 +1854,13 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
                         ?: return@withContext ToolExecutionResult(false, emptyMap(), "ID de producto requerido")
                     val item = database.shoppingDao().getItemById(id)
                         ?: return@withContext ToolExecutionResult(false, emptyMap(), "Producto no encontrado")
-                    val nuevoNombre = args["nuevoNombre"]?.toString()?.trim() ?: item.name
-                    val nuevaCant = args["nuevaCantidad"]?.toString()?.toDoubleOrNull() ?: item.quantity
-                    val nuevoPrecio = args["nuevoPrecio"]?.toString()?.toDoubleOrNull() ?: item.unitPrice
+                    val requestedRename = args["nuevoNombre"]?.toString()?.trim()
+                        ?.takeIf { it.isNotBlank() && !it.equals("Producto", ignoreCase = true) }
+                    val candidateName = (args["nombreProducto"] ?: args["productName"])?.toString()?.trim()
+                        ?.takeIf { it.isNotBlank() && !it.equals("Producto", ignoreCase = true) }
+                    val nuevoNombre = requestedRename ?: candidateName ?: item.name
+                    val nuevaCant = (args["nuevaCantidad"] ?: args["cantidad"])?.toString()?.toDoubleOrNull() ?: item.quantity
+                    val nuevoPrecio = (args["nuevoPrecio"] ?: args["precioEstimado"])?.toString()?.toDoubleOrNull() ?: item.unitPrice
                     val comprado = args["comprado"]?.toString()?.toBooleanStrictOrNull() ?: item.isPurchased
 
                     database.shoppingDao().updateShoppingItem(
@@ -1810,45 +1946,6 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
             withContext(Dispatchers.Main) {
                 vibrateDevice()
                 onResult(freed)
-            }
-        }
-    }
-
-    // Export CSV with BOM (Section G)
-    fun exportCsv(context: Context, onShareIntentReady: (Intent) -> Unit) {
-        viewModelScope.launch {
-            val currentSettings = settingsState.value
-            val csvText = financeRepository.generateCsvData(currentSettings.currencyCode)
-            try {
-                val cacheDir = context.cacheDir
-                val file = File(cacheDir, "alcancia_movimientos.csv")
-                file.writeText(csvText, Charsets.UTF_8)
-
-                val uri: Uri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/csv"
-                    putExtra(Intent.EXTRA_SUBJECT, "Reporte de movimientos - Alcancía")
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-
-                val chooser = Intent.createChooser(intent, "Exportar movimientos CSV")
-                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                onShareIntentReady(chooser)
-            } catch (e: Exception) {
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "Reporte de movimientos - Alcancía")
-                    putExtra(Intent.EXTRA_TEXT, csvText)
-                }
-                val chooser = Intent.createChooser(intent, "Exportar movimientos CSV")
-                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                onShareIntentReady(chooser)
             }
         }
     }

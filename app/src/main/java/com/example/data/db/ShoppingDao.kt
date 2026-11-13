@@ -54,6 +54,9 @@ interface ShoppingDao {
     @Query("SELECT COUNT(*) FROM shopping_lists")
     suspend fun getListCount(): Int
 
+    @Query("SELECT * FROM shopping_items ORDER BY id DESC")
+    fun getAllShoppingItems(): Flow<List<ShoppingItemEntity>>
+
     @Query("SELECT DISTINCT name FROM shopping_items ORDER BY id DESC LIMIT 50")
     fun getAllDistinctProductNames(): Flow<List<String>>
 
