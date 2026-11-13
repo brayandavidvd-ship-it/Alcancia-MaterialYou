@@ -1,0 +1,11 @@
+Alcancía v1.3.0 es una aplicación minimalista, rápida y privada de finanzas personales para Android, diseñada con Jetpack Compose, Material 3 y un entorno oscuro enfocado en la claridad.
+
+Características principales:
+• Control financiero 100% offline: tus movimientos de ingresos, gastos y ahorros se guardan localmente en tu dispositivo con SQLite (Room), sin cuentas obligatorias ni servidores propios.
+• Metas de ahorro con anillo de progreso: crea, fija tu meta principal en Inicio, registra aportes o retiros con teclado numérico integrado y consulta tu historial completo.
+• Listas de compras inteligentes: organiza múltiples listas, asigna presupuestos por lista, marca productos comprados, reutiliza precios recientes y registra el total como gasto con un toque.
+• Asistente en la nube con Gemini (opcional): activa o desactiva el asistente cuando lo desees con tu propia clave API para registrar movimientos, metas o productos mediante texto o dictado por voz.
+• Accesibilidad y personalización: modo daltónico, paletas de acento, modo claro/oscuro/sistema, densidad de interfaz y tipografía numérica ajustable.
+• Seguridad integrada: bloqueo biométrico por huella digital y código PIN configurable.
+• Recordatorios locales personalizables: configura hora, frecuencia (diaria, días hábiles o fines de semana) y edita el mensaje de tus notificaciones.
+• Software libre sin anuncios ni rastreadores: código abierto, cero publicidad, cero analítica oculta y respaldos completos en formato JSON bajo tu control.

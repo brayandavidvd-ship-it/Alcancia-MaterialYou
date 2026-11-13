@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MicNone
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -85,6 +86,7 @@ import com.example.ui.theme.ColorblindExpenseColor
 import com.example.ui.theme.ColorblindIncomeColor
 import com.example.ui.viewmodel.AlcanciaViewModel
 import com.example.ui.viewmodel.AppTab
+import com.example.util.rememberVoiceDictationLauncher
 import java.text.NumberFormat
 import java.util.Calendar
 import java.util.Locale
@@ -158,6 +160,39 @@ private data class SuggestionItem(
     val amount: Double,
     val displayText: String
 )
+
+@Composable
+internal fun AiVoiceMicButton(
+    palette: InicioPalette.Colors,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = palette.s2,
+        border = BorderStroke(
+            width = 1.dp,
+            brush = Brush.horizontalGradient(
+                InicioPalette.AiGradient.map {
+                    it.copy(alpha = if (enabled) 0.72f else 0.30f)
+                }
+            )
+        ),
+        modifier = modifier.size(40.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Default.MicNone,
+                contentDescription = "Dictar por voz",
+                tint = if (enabled) palette.accent else palette.t2,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -263,6 +298,12 @@ fun InicioScreen(
             SuggestionItem(note = capNote, amount = amount, displayText = text)
         }
     }
+
+    val launchVoiceInput = rememberVoiceDictationLauncher(
+        prompt = "Dime qué registrar…",
+        onResult = { transcript -> viewModel.openAssistantChatWithVoice(transcript) },
+        onUnavailable = { viewModel.openAssistantChatWithVoice(null) }
+    )
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -656,8 +697,17 @@ fun InicioScreen(
                             text = "Dime qué registrar…",
                             fontSize = 14.sp,
                             color = palette.t2,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        AiVoiceMicButton(
+                            palette = palette,
+                            onClick = { launchVoiceInput() },
+                            modifier = Modifier.testTag("mic_bar_inicio_btn")
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
                                 .size(40.dp)

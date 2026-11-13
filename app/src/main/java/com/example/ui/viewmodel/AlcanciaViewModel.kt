@@ -986,9 +986,29 @@ class AlcanciaViewModel(application: Application) : AndroidViewModel(application
     private val _isAssistantChatOpen = MutableStateFlow(false)
     val isAssistantChatOpen: StateFlow<Boolean> = _isAssistantChatOpen.asStateFlow()
 
+    private val _pendingVoiceTranscript = MutableStateFlow<String?>(null)
+    val pendingVoiceTranscript: StateFlow<String?> = _pendingVoiceTranscript.asStateFlow()
+
+    private val _shouldFocusVoiceInputOnOpen = MutableStateFlow(false)
+    val shouldFocusVoiceInputOnOpen: StateFlow<Boolean> = _shouldFocusVoiceInputOnOpen.asStateFlow()
+
     fun openAssistantChat() {
         _isAssistantChatOpen.value = true
         vibrateDevice()
+    }
+
+    fun openAssistantChatWithVoice(transcript: String? = null) {
+        _pendingVoiceTranscript.value = transcript?.trim()?.takeIf { it.isNotEmpty() }
+        _shouldFocusVoiceInputOnOpen.value = true
+        _isAssistantChatOpen.value = true
+        vibrateDevice()
+    }
+
+    fun consumePendingVoiceTranscript(): String? {
+        val value = _pendingVoiceTranscript.value
+        _pendingVoiceTranscript.value = null
+        _shouldFocusVoiceInputOnOpen.value = false
+        return value
     }
 
     fun closeAssistantChat() {

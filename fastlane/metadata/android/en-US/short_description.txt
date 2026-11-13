@@ -1,0 +1,1 @@
+Personal expense tracker, savings goals, and shopping lists with optional AI.

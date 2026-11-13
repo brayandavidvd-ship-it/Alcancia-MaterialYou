@@ -1,84 +1,62 @@
-# Alcancía 1.3.0
+# Alcancía v1.3.0
 
-> **App de ahorros local, privada y de código abierto para Android.**
+> **Aplicación de control financiero personal, metas de ahorro y listas de compras para Android. Software libre, 100% sin anuncios ni rastreadores.**
 
-Alcancía es una aplicación moderna, fluida y 100% privada diseñada para ayudarte a gestionar tus ingresos, gastos, metas de ahorro y listas de compras de forma segura y sin complicaciones.
+Alcancía es una aplicación moderna y minimalista para Android construida con Jetpack Compose y Material 3. Permite llevar el control de tus ingresos, gastos, metas de ahorro y listas de compras directamente en tu dispositivo, con soporte opcional para un asistente en la nube mediante tu propia clave de Gemini.
 
 ---
 
-## ✨ Características Principales
+## Características Principales
 
-- **🔒 100% Privada y Local:** Tus finanzas se quedan en tu dispositivo. La base de datos es SQLite local (Room) y no requiere servidores externos ni cuentas para funcionar.
-- **🚫 Cero Rastradores y Sin Anuncios:** Sin telemetría oculta, sin análisis en segundo plano, sin SDKs de publicidad.
-- **🎨 Personalización Total:** 
-  - Soporte completo de **Material You** (color dinámico de Android 12+).
-  - Temas claros, oscuros y OLED / negro puro.
-  - Paletas de acento personalizadas, estilos de tarjetas ajustables, selector de esquinas redondeadas y fuentes numéricas.
-- **🛡️ Seguridad Integrada:**
-  - Bloqueo biométrico por **huella digital** con fallback seguro.
-  - Bloqueo por código **PIN numérico** configurable.
-- **💾 Copias de Seguridad y Portabilidad de Datos:**
-  - Exportación e importación de respaldos completos en formato JSON local.
-  - Exportación de movimientos financieros a **CSV** para análisis en hojas de cálculo.
-  - Herramienta segura de **limpieza de caché** de la aplicación.
-- **⏰ Recordatorios en Segundo Plano:**
-  - Programación estable con `WorkManager` para recordatorios diarios, de días hábiles o fines de semana que persisten tras reiniciar el dispositivo.
-  - Verificación y solicitud amigable del permiso de notificaciones (`POST_NOTIFICATIONS` en Android 13+).
+- **Control financiero 100% offline:** Tus movimientos de ingresos, gastos y ahorros se almacenan localmente en SQLite mediante Android Room, sin cuentas obligatorias ni servidores propios.
+- **Software libre sin anuncios ni rastreadores:** Cero SDKs de publicidad, cero analítica oculta y sin telemetría en segundo plano.
+- **Metas de ahorro con anillo de progreso:** Crea metas, fija tu meta prioritaria en la pantalla de Inicio, realiza aportes o retiros con teclado numérico y revisa su historial detallado.
+- **Listas de compras inteligentes:** Administra múltiples listas, define presupuestos por lista, marca productos comprados, reutiliza precios recientes y registra el total como gasto con un toque.
+- **Asistente en la nube opcional (Gemini) con entrada por voz:** Activa el asistente cuando lo necesites con tu propia clave API mediante llamadas REST abiertas (OkHttp), con botón de dictado por voz en Inicio, Compras y Chat para preparar comandos o registros.
+- **Personalización y accesibilidad:** Soporte para modo oscuro minimalista (`#05070B`), modo claro y sistema, modo daltónico, paletas de acento, estilos de tarjetas, densidad y tipografía numérica.
+- **Seguridad integrada:** Bloqueo biométrico por huella digital y código PIN numérico configurable.
+- **Recordatorios locales personalizables:** Programa avisos diarios, en días hábiles o fines de semana y personaliza el texto de la notificación con restauración rápida al mensaje predeterminado.
+- **Respaldos locales en JSON:** Exporta e importa copias de seguridad completas de tus datos cuando lo desees.
 
-## 🛠️ Tecnologías y Arquitectura
+---
+
+## Tecnologías y Arquitectura
 
 - **Lenguaje:** Kotlin
-- **Interfaz de Usuario:** Jetpack Compose + Material Design 3 (M3)
-- **Arquitectura:** MVVM (Model-View-ViewModel) con Kotlin Coroutines y StateFlow
-- **Persistencia:** Room Database (SQLite) con migraciones automáticas
-- **Tareas en Segundo Plano:** Android Jetpack WorkManager
-- **Red (IA Local):** OkHttp 4 con cliente ligero y timeouts seguros
-- **Biometría:** AndroidX Biometric API
+- **Interfaz de Usuario:** Jetpack Compose + Material Design 3
+- **Arquitectura:** MVVM con StateFlow y Kotlin Coroutines
+- **Persistencia:** Room Database (SQLite)
+- **Red (Asistente opcional):** OkHttp + JSON REST abierto
 
 ---
 
-## 🚀 Instrucciones de Compilación (Build Instructions)
+## Instrucciones de Compilación
 
 ### Requisitos Previos
 
-- **JDK 17** o superior.
-- **Android SDK** con `compileSdk 35` y herramientas de compilación compatibles.
-- Android Studio Ladybug / Koala o Gradle CLI.
+- **JDK 17** o superior
+- **Android SDK** compatible con `compileSdk 36`
 
 ### Compilar desde la Terminal
 
-Para generar el APK de depuración:
+Generar APK de depuración:
 ```bash
 gradle assembleDebug
 ```
-El archivo generado se ubicará en:
-`app/build/outputs/apk/debug/app-debug.apk`
 
-Para compilar el APK de lanzamiento (Release):
+Generar APK de lanzamiento (`release`):
 ```bash
 gradle assembleRelease
 ```
 
-### Ejecutar Pruebas Locales
-
+Ejecutar pruebas unitarias locales:
 ```bash
 gradle :app:testDebugUnitTest
 ```
 
 ---
 
-## 📦 F-Droid y Código Abierto
+## Licencia y Créditos
 
-- **Licencia:** MIT (ver archivo [LICENSE](LICENSE)).
-- **Cumplimiento F-Droid:**
-  - No contiene binarios propietarios ni bibliotecas de seguimiento.
-  - Todo el código fuente está disponible públicamente.
-  - Compatible con el pipeline de compilación automatizada de F-Droid.
-
----
-
-## 👤 Autor y Créditos
-
-- **Desarrollador:** PixelX_O & Google AI Studio
-- **Versión:** 1.1
-- **Licencia:** [MIT](LICENSE)
+- **Licencia:** Apache License 2.0 (ver [LICENSE](LICENSE)).
+- **Créditos:** Creado por PixelX_O y Google Studio.

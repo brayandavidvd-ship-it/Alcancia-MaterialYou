@@ -100,6 +100,7 @@ import com.example.ui.theme.ColorblindExpenseColor
 import com.example.ui.theme.ColorblindIncomeColor
 import com.example.ui.theme.LocalNumberFontFamily
 import com.example.ui.viewmodel.AlcanciaViewModel
+import com.example.util.rememberVoiceDictationLauncher
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -139,6 +140,11 @@ fun ComprasScreen(
     }
 
     val numberFont = LocalNumberFontFamily.current
+    val launchVoiceInput = rememberVoiceDictationLauncher(
+        prompt = "Dime qué comprar…",
+        onResult = { transcript -> viewModel.openAssistantChatWithVoice(transcript) },
+        onUnavailable = { viewModel.openAssistantChatWithVoice(null) }
+    )
 
     val currentList = remember(shoppingLists, selectedListId) {
         shoppingLists.firstOrNull { it.id == selectedListId } ?: shoppingLists.firstOrNull()
@@ -686,8 +692,17 @@ fun ComprasScreen(
                     text = "Dime qué comprar…",
                     fontSize = 14.sp,
                     color = palette.t2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                AiVoiceMicButton(
+                    palette = palette,
+                    onClick = { launchVoiceInput() },
+                    modifier = Modifier.testTag("mic_bar_compras_btn")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
                         .size(40.dp)

@@ -77,6 +77,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -109,6 +111,7 @@ import com.example.ui.model.MessageSender
 import com.example.ui.theme.ColorblindExpenseColor
 import com.example.ui.theme.ColorblindIncomeColor
 import com.example.ui.viewmodel.AlcanciaViewModel
+import com.example.util.rememberVoiceDictationLauncher
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -148,10 +151,51 @@ fun AssistantChatScreen(
     }
 
     var inputValue by remember { mutableStateOf(TextFieldValue("")) }
+    val inputFocusRequester = remember { FocusRequester() }
+    val pendingVoiceTranscript by viewModel.pendingVoiceTranscript.collectAsStateWithLifecycle()
+    val shouldFocusVoiceInputOnOpen by viewModel.shouldFocusVoiceInputOnOpen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val launchVoiceInput = rememberVoiceDictationLauncher(
+        prompt = "Dicta tu mensaje…",
+        onResult = { transcript ->
+            val current = inputValue.text
+            val updated = if (current.isBlank()) transcript else "${current.trimEnd()} $transcript"
+            inputValue = TextFieldValue(
+                text = updated,
+                selection = TextRange(updated.length)
+            )
+            try {
+                inputFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        },
+        onUnavailable = {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Dictado por voz no disponible en este dispositivo")
+            }
+            try {
+                inputFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    )
+
+    LaunchedEffect(pendingVoiceTranscript, shouldFocusVoiceInputOnOpen) {
+        if (pendingVoiceTranscript != null || shouldFocusVoiceInputOnOpen) {
+            val transcript = viewModel.consumePendingVoiceTranscript()
+            if (!transcript.isNullOrBlank()) {
+                inputValue = TextFieldValue(
+                    text = transcript,
+                    selection = TextRange(transcript.length)
+                )
+            }
+            try {
+                inputFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
 
     val revealedMessageIds = remember { mutableStateListOf<String>() }
     val animationsEnabled = settings.hapticLevel != "OFF"
@@ -546,9 +590,19 @@ fun AssistantChatScreen(
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .focusRequester(inputFocusRequester)
                                 .testTag("chat_input_field")
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    AiVoiceMicButton(
+                        palette = palette,
+                        enabled = !isTyping,
+                        onClick = { launchVoiceInput() },
+                        modifier = Modifier.testTag("chat_mic_button")
+                    )
 
                     Spacer(modifier = Modifier.width(8.dp))
 

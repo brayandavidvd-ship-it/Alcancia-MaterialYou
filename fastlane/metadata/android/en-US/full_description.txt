@@ -1,0 +1,11 @@
+Alcancía v1.3.0 is a fast, private, minimalist personal finance app for Android, built with Jetpack Compose and Material 3.
+
+Key features:
+• 100% offline finance tracking: income, expenses, and savings transactions stored locally on your device using SQLite (Room), with no required accounts.
+• Savings goals with progress ring: pin your priority goal on Home, log deposits or withdrawals with an integrated keypad, and review your full goal history.
+• Smart shopping lists: organize multiple lists, set per-list budgets, check off items, reuse recent prices, and log totals as expenses with one tap.
+• Optional Gemini cloud assistant: enable when desired using your own API key to log transactions, goals, or shopping items via text or voice dictation.
+• Accessibility & customization: colorblind preset, accent palettes, light/dark/system themes, density controls, and numeric typography options.
+• Built-in security: biometric fingerprint lock and configurable PIN code.
+• Customizable local reminders: schedule time, frequency (daily, weekdays, or weekends), and edit your notification message.
+• Free & open-source with zero ads or trackers: no hidden analytics and full local JSON backups under your control.
