@@ -1,4 +1,4 @@
-# Alcancía 1.1
+# Alcancía 1.3.0
 
 > **App de ahorros local, privada y de código abierto para Android.**
 
@@ -24,14 +24,6 @@ Alcancía es una aplicación moderna, fluida y 100% privada diseñada para ayuda
 - **⏰ Recordatorios en Segundo Plano:**
   - Programación estable con `WorkManager` para recordatorios diarios, de días hábiles o fines de semana que persisten tras reiniciar el dispositivo.
   - Verificación y solicitud amigable del permiso de notificaciones (`POST_NOTIFICATIONS` en Android 13+).
-- **✨ IA Local Opcional (Ollama):**
-  - Función completamente opcional (desactivada por defecto).
-  - Conexión a tu propia instancia local de **Ollama** (ej. en tu PC vía `http://10.0.2.2:11434` o en tu red local).
-  - Sugerencia inteligente de categorías para transacciones basada únicamente en la descripción.
-  - **100% Privada:** Ningún dato se envía a servicios en la nube de terceros.
-  - La app funciona 100% idéntica si esta función está apagada o sin conexión.
-
----
 
 ## 🛠️ Tecnologías y Arquitectura
 
